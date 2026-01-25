@@ -2,7 +2,6 @@
 import { GoogleGenAI, Type } from "@google/genai";
 import { Candle, Signal, MarketType, TradingPersonality } from "../types";
 
-// Fix: Directly utilizing process.env.API_KEY for SDK initialization
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
 export const analyzeMarket = async (
@@ -13,19 +12,20 @@ export const analyzeMarket = async (
 ): Promise<Partial<Signal>> => {
   try {
     const prompt = `
-      Act as an Elite Market Analyst. Analyze ${pair} for ${marketType} trading.
-      User Profile: ${personality} personality.
+      Act as an Elite Hedge Fund Quantitative Analyst. 
+      Analyze the ${pair} market for a ${marketType} trading setup.
+      Current User Personality: ${personality} (Adjust risk and confirmation strictly based on this).
       
-      Tasks:
-      1. Detect reversal/continuation patterns (Pin Bar, Engulfing, etc.)
-      2. Analyze market structure (HH/HL or LH/LL)
-      3. Identify potential market manipulation (Stop hunts, fake breakouts)
-      4. Provide structured reasoning for transparency.
+      CRITICAL TASKS:
+      1. PRICE ACTION: Detect Candlestick patterns (Pin Bars, Engulfing, Morning/Evening Stars, Tweezer Tops).
+      2. MARKET STRUCTURE: Analyze if the market is in a Trend (HH/HL) or Range. Identify Breakouts or Fakeouts.
+      3. SMART MONEY CONCEPTS: Identify Order Blocks, Fair Value Gaps (FVG), or Liquidity Sweeps.
+      4. RISK: Evaluate spread and manipulation risks at current levels.
 
-      Recent OHLC Data (JSON):
+      Recent 20-candle OHLC Data (JSON):
       ${JSON.stringify(candles.slice(-20))}
 
-      Respond in JSON format.
+      Respond only in structured JSON. If no clear high-probability setup exists, return a low-confidence SELL or BUY with a warning.
     `;
 
     const response = await ai.models.generateContent({
@@ -36,20 +36,20 @@ export const analyzeMarket = async (
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            type: { type: Type.STRING, description: 'BUY/SELL or CALL/PUT' },
+            type: { type: Type.STRING, description: 'BUY, SELL, CALL, or PUT' },
             entry: { type: Type.NUMBER },
             tp: { type: Type.NUMBER },
             sl: { type: Type.NUMBER },
-            expiry: { type: Type.STRING },
-            pattern: { type: Type.STRING },
-            confidence: { type: Type.STRING, description: 'LOW/MEDIUM/HIGH' },
-            reasoning: { type: Type.STRING, description: 'Plain English summary' },
+            expiry: { type: Type.STRING, description: 'Expiry duration for binary (e.g. 5m, 15m)' },
+            pattern: { type: Type.STRING, description: 'Pattern name found (e.g. Bullish Engulfing)' },
+            confidence: { type: Type.STRING, description: 'LOW, MEDIUM, or HIGH' },
+            reasoning: { type: Type.STRING, description: '15-word professional trade logic' },
             breakdown: {
               type: Type.OBJECT,
               properties: {
-                indicators: { type: Type.STRING, description: 'Specific indicator signals detected' },
-                structure: { type: Type.STRING, description: 'Market structure analysis' },
-                manipulationRisk: { type: Type.STRING, description: 'Flags for stop hunts/fakeouts' }
+                indicators: { type: Type.STRING, description: 'RSI/MACD status' },
+                structure: { type: Type.STRING, description: 'Current trend status' },
+                manipulationRisk: { type: Type.STRING, description: 'Manipulation alerts' }
               },
               required: ['indicators', 'structure', 'manipulationRisk']
             }
@@ -59,7 +59,9 @@ export const analyzeMarket = async (
       }
     });
 
-    const result = JSON.parse(response.text.trim());
+    const text = response.text.trim();
+    const result = JSON.parse(text);
+    
     return {
       ...result,
       pair,
@@ -69,7 +71,7 @@ export const analyzeMarket = async (
       timeframe: 'M1'
     };
   } catch (error) {
-    console.error("AI Analysis Error:", error);
+    console.error("Neural Node Analysis Failure:", error);
     return {};
   }
 };
