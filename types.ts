@@ -1,157 +1,180 @@
 
-export type MarketType = 'FOREX' | 'BINARY';
+export type MarketType = 'FOREX' | 'BINARY' | 'INDICES' | 'COMMODITIES' | 'CRYPTO';
 export type Timeframe = 'M1' | 'M5' | 'M15' | 'M30' | 'H1' | 'H4' | 'D1';
+export type MarketRegime = 'TRENDING' | 'RANGING' | 'CHOPPY';
 
 export interface Candle {
-  time: number;
-  open: number;
-  high: number;
-  low: number;
-  close: number;
-  volume: number;
+  time: number; open: number; high: number; low: number; close: number; volume: number;
 }
+
+export type ManipulationType = 'STOP_HUNT' | 'FAKE_BREAKOUT' | 'VOLUME_SPIKE' | 'NEWS_WHIPSAW' | 'CLEAR';
 
 export interface Signal {
   id: string;
+  hash: string;
   pair: string;
-  type: 'BUY' | 'SELL' | 'CALL' | 'PUT';
+  type: 'BUY' | 'SELL' | 'CALL' | 'PUT' | 'WAIT';
   marketType: MarketType;
   entry: number;
-  tp?: number;
-  sl?: number;
+  tp: number;
+  sl: number;
   expiry?: string;
   timeframe: Timeframe;
   pattern: string;
-  confidence: 'LOW' | 'MEDIUM' | 'HIGH';
+  confidence: number;
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
   timestamp: number;
   reasoning: string;
-  lotSize?: number;
-  riskAmount?: number;
-  strategyId?: string;
-  pips?: number;
-  rrr?: string;
+  regime: MarketRegime;
+  slippageScore: 'LOW' | 'MEDIUM' | 'HIGH';
+  spreadStatus: 'STABLE' | 'WIDENING' | 'VOLATILE';
   breakdown: {
     indicators: string;
     structure: string;
     manipulationRisk: string;
+    manipulationType?: ManipulationType;
+    manipulationScore: number; 
+    rejectionReason?: string;
   };
 }
 
-export interface NewsEvent {
+export interface IndicatorData {
+  rsi?: number[];
+  sma?: number[];
+  ema?: number[];
+  macd?: { macd: number[]; signal: number[]; histogram: number[] };
+  bollinger?: { upper: number[]; lower: number[]; mid: number[] };
+}
+
+export interface BacktestResult {
+  totalTrades: number;
+  wins: number;
+  losses: number;
+  winRate: number;
+  profitFactor: number;
+  netProfit: number;
+  maxDrawdown: number;
+  equityCurve: number[];
+  trades: {
+    entryTime: number;
+    exitTime: number;
+    type: 'BUY' | 'SELL';
+    pnl: number;
+    result: 'WIN' | 'LOSS';
+  }[];
+}
+
+export type PaymentGateway = 'PAYSTACK' | 'FLUTTERWAVE';
+export type SubscriptionTier = 'BASIC' | 'PRO' | 'INSTITUTIONAL';
+
+export interface Transaction {
   id: string;
-  time: string;
+  userId: string;
+  userEmail: string;
+  amount: number;
   currency: string;
-  event: string;
-  impact: 'LOW' | 'MEDIUM' | 'HIGH';
+  gateway: PaymentGateway;
+  reference: string;
+  status: 'PENDING' | 'SUCCESS' | 'ERROR';
+  tier: SubscriptionTier;
+  timestamp: number;
+  verificationSource: 'POLLING' | 'WEBHOOK';
+  verifiedAt?: number;
 }
 
 export interface MarketPair {
-  symbol: string;
-  base: string;
-  quote: string;
-  price: number;
-  change: number;
-  enabled?: boolean;
+  symbol: string; base: string; quote: string; price: number; change: number; category: MarketType;
 }
 
-export type DrawingType = 'TRENDLINE' | 'HLINE' | 'FIBONACCI';
-
-export interface Drawing {
-  id: string;
-  type: DrawingType;
-  points: { x: number; y: number; price: number; time: number }[];
-  color: string;
-}
-
-export interface OpenTrade {
-  id: string;
-  pair: string;
-  type: 'BUY' | 'SELL' | 'CALL' | 'PUT';
-  entry: number;
-  currentPrice: number;
-  amount: number;
-  timestamp: number;
-  marketType: MarketType;
-  status: 'OPEN' | 'CLOSED';
-  pnl: number;
-}
+export type BrokerPlatform = 'MT5' | 'POCKET_OPTION' | 'QUOTEX' | 'IQ_OPTION' | 'DERIV' | 'NONE';
 
 export interface BrokerAccount {
-  connected: boolean;
-  platform: 'MT5' | 'BINARY_COM' | 'POCKET_OPTION' | 'NONE';
-  balance: number;
-  equity: number;
-  leverage: number;
-  currency: string;
-  accountNumber: string;
-  payoutPercent?: number;
-  spread?: number;
+  connected: boolean; 
+  platform: BrokerPlatform; 
+  brokerName: string;
+  balance: number; 
+  equity: number; 
+  leverage: number; 
+  currency: string; 
+  accountNumber: string; 
+  dailyLoss: number;
+  consecutiveLosses: number;
+  apiKey?: string;
+  webhookUrl?: string;
+  eaConnected?: boolean;
 }
 
 export type TradingPersonality = 'CONSERVATIVE' | 'BALANCED' | 'AGGRESSIVE';
 export type LearningMode = 'BEGINNER' | 'PRO';
 
 export interface UserSettings {
-  riskPercent: number;
-  preferredSessions: string[];
-  theme: 'DARK' | 'LIGHT';
-  notifications: boolean;
-  autoLot: boolean;
-  personality: TradingPersonality;
+  riskPercent: number; 
+  dailyLossLimit: number; 
+  maxConsecutiveLosses: number;
+  personality: TradingPersonality; 
   learningMode: LearningMode;
-  webhookUrl?: string;
+  toggles: {
+    newsFilter: boolean;
+    aiConfirmation: boolean;
+    sessionFilter: boolean;
+    psychologicalGuard: boolean;
+    autoLot: boolean;
+  };
 }
 
-export type UserRole = 'USER' | 'ADMIN';
-
 export interface User {
-  id: string;
-  email: string;
-  role: UserRole;
-  verified: boolean;
-  joinedAt: number;
+  id: string; 
+  email: string; 
+  name: string;
+  role: 'USER' | 'ADMIN'; 
+  verified: boolean; 
+  joinedAt: number; 
+  tier: SubscriptionTier;
+  token?: string;
+}
+
+export interface AuthResponse {
+  user: User;
+  token: string;
 }
 
 export interface SystemState {
-  aiModulesEnabled: boolean;
-  forexSignalsEnabled: boolean;
+  aiModulesEnabled: boolean; 
+  forexSignalsEnabled: boolean; 
   binarySignalsEnabled: boolean;
-  activeAnnouncements: string[];
+  confidenceThreshold: number; 
   maintenanceMode: boolean;
-  confidenceThreshold: number; // 0-100
-  remoteEAControl: boolean;
+  rolloutPercentage: number; 
+  killSwitchActive: boolean; 
 }
 
 export interface JournalEntry {
-  id: string;
-  timestamp: number;
-  pair: string;
-  type: string;
-  result: 'WIN' | 'LOSS' | 'BE';
-  pnl: number;
-  emotion: 'CALM' | 'ANXIOUS' | 'GREEDY' | 'FOMO';
+  id: string; 
+  timestamp: number; 
+  pair: string; 
+  type: string; 
+  result: 'WIN' | 'LOSS' | 'BE'; 
+  pnl: number; 
+  emotion: 'CALM' | 'ANXIOUS' | 'GREEDY' | 'FOMO' | 'REVENGE'; 
   aiFeedback: string;
-  screenshot?: string;
-}
-
-export interface SessionBias {
-  london: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
-  newyork: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
-  asian: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
-}
-
-export interface EAStatus {
-  connected: boolean;
-  version: string;
-  lastHeartbeat: number;
-  terminalId: string;
+  signalHash: string;
 }
 
 export interface Strategy {
-  id: string;
-  name: string;
-  description: string;
-  riskProfile: TradingPersonality;
-  winRate: number;
+  id: string; 
+  name: string; 
+  description: string; 
+  riskProfile: TradingPersonality; 
+  winRate: number; 
+  drawdown: number;
+  stabilityScore: number; 
   type: MarketType;
+  logicType: 'AI' | 'TECHNICAL' | 'PRICE_ACTION' | 'HYBRID';
+}
+
+export interface ValidationResult {
+  accuracy: number;
+  feedback: string;
+  alternativeTarget?: { tp: number; sl: number };
+  verdict: 'VALID' | 'RISKY' | 'INVALID';
 }
