@@ -9,6 +9,13 @@ export interface Candle {
 
 export type ManipulationType = 'STOP_HUNT' | 'FAKE_BREAKOUT' | 'VOLUME_SPIKE' | 'NEWS_WHIPSAW' | 'CLEAR';
 
+export interface LiveSituation {
+  sentiment: 'BULLISH' | 'BEARISH' | 'NEUTRAL';
+  shortSummary: string;
+  volatility: 'LOW' | 'MEDIUM' | 'HIGH';
+  keyLevel?: number;
+}
+
 export interface Signal {
   id: string;
   hash: string;

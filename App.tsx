@@ -7,9 +7,9 @@ import {
   FlaskConical
 } from 'lucide-react';
 import { ALL_ASSETS, AI_STRATEGIES } from './constants';
-import { Candle, Signal, MarketType, MarketPair, BrokerAccount, UserSettings, User, SystemState, Timeframe, JournalEntry } from './types';
+import { Candle, Signal, MarketType, MarketPair, BrokerAccount, UserSettings, User, SystemState, Timeframe, JournalEntry, LiveSituation } from './types';
 import { generateInitialCandles, updateLastCandle } from './services/marketSimulator';
-import { analyzeMarket } from './services/geminiService';
+import { analyzeMarket, getMarketSituationHUD } from './services/geminiService';
 import { authService } from './services/authService';
 import CandleChart from './components/CandleChart';
 import SignalPanel from './components/SignalPanel';
@@ -45,6 +45,7 @@ const App: React.FC = () => {
   const [timeframe, setTimeframe] = useState<Timeframe>('H1');
   const [candles, setCandles] = useState<Candle[]>([]);
   const [signals, setSignals] = useState<Signal[]>([]);
+  const [liveSituation, setLiveSituation] = useState<LiveSituation | undefined>();
   const [journal, setJournal] = useState<JournalEntry[]>([]);
   const [activeStrategyId, setActiveStrategyId] = useState<string>(AI_STRATEGIES[0].id);
 
@@ -81,7 +82,14 @@ const App: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    setCandles(generateInitialCandles(selectedPair.price));
+    const newCandles = generateInitialCandles(selectedPair.price);
+    setCandles(newCandles);
+    // Refresh Market Situation HUD on Pair Switch
+    const refreshHUD = async () => {
+      const situation = await getMarketSituationHUD(selectedPair.symbol, newCandles);
+      setLiveSituation(situation);
+    };
+    refreshHUD();
   }, [selectedPair, timeframe]);
 
   useEffect(() => {
@@ -316,7 +324,14 @@ const App: React.FC = () => {
              {activeView === 'TERMINAL' ? (
                <>
                  <div className="flex-1 min-h-[300px] sm:min-h-[400px] relative">
-                    <CandleChart candles={candles} symbol={selectedPair.symbol} timeframe={timeframe} onTimeframeChange={setTimeframe} signals={signals} />
+                    <CandleChart 
+                      candles={candles} 
+                      symbol={selectedPair.symbol} 
+                      timeframe={timeframe} 
+                      onTimeframeChange={setTimeframe} 
+                      signals={signals} 
+                      liveSituation={liveSituation}
+                    />
                  </div>
                  <div className="h-48 sm:h-64 shrink-0 bg-[#161a1e] border-t border-white/5 p-4 sm:p-8 flex flex-col sm:flex-row gap-4 sm:gap-8 overflow-y-auto sm:overflow-x-auto">
                     <div className="min-w-0 sm:min-w-[450px] flex-1 bg-[#0b0e11] rounded-[24px] sm:rounded-[32px] border border-white/5 p-4 sm:p-8 flex flex-col justify-between shadow-2xl">

@@ -1,6 +1,6 @@
 
 import { GoogleGenAI, Type } from "@google/genai";
-import { Candle, Signal, MarketType, TradingPersonality, ValidationResult } from "../types";
+import { Candle, Signal, MarketType, TradingPersonality, ValidationResult, LiveSituation } from "../types";
 
 const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
 
@@ -56,6 +56,41 @@ export const analyzeMarket = async (
   } catch (error) {
     console.error("AI Sync Error:", error);
     return { type: 'WAIT' };
+  }
+};
+
+export const getMarketSituationHUD = async (
+  pair: string,
+  candles: Candle[]
+): Promise<LiveSituation> => {
+  try {
+    const prompt = `Provide a concise 1-sentence live market situation for ${pair}. Determine if sentiment is BULLISH, BEARISH, or NEUTRAL based on these candles: ${JSON.stringify(candles.slice(-10))}. Respond in JSON.`;
+    
+    const response = await ai.models.generateContent({
+      model: "gemini-3-flash-preview",
+      contents: prompt,
+      config: {
+        responseMimeType: "application/json",
+        responseSchema: {
+          type: Type.OBJECT,
+          properties: {
+            sentiment: { type: Type.STRING },
+            shortSummary: { type: Type.STRING },
+            volatility: { type: Type.STRING },
+            keyLevel: { type: Type.NUMBER }
+          },
+          required: ["sentiment", "shortSummary", "volatility"]
+        }
+      }
+    });
+
+    return JSON.parse(response.text.trim()) as LiveSituation;
+  } catch (error) {
+    return { 
+      sentiment: 'NEUTRAL', 
+      shortSummary: 'Analyzing structural liquidity flows...', 
+      volatility: 'MEDIUM' 
+    };
   }
 };
 
