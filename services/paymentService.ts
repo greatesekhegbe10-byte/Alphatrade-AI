@@ -2,34 +2,52 @@
 import { Transaction, PaymentGateway, SubscriptionTier, User } from '../types';
 
 /**
- * ALPHA-FINTECH SECURE PAYMENT ENGINE (PRODUCTION STABLE v5.2)
+ * ALPHA-FINTECH SECURE PAYMENT ENGINE (PRO-DURABLE v7.0)
  * 
- * PERMANENT FIXES FOR CHECKOUT FAILURES:
- * 1. PAYSTACK: Switched from reference-based URLs to simulated access_code handshake.
- * 2. FLUTTERWAVE: Fixed v3 Hosted URL path and forced absolute protocol headers.
- * 3. ROUTING: Eliminated relative path 'Cannot GET' errors by ensuring full URL strings.
+ * CORE FIX: Resolves "Unexpected token < in JSON" error by:
+ * 1. Verifying 'Content-Type: application/json' before parsing.
+ * 2. Providing descriptive error messages when the server returns HTML (404/500).
+ * 3. Enforcing strict JSON response structure for Gateway handshakes.
  */
 
-const CONFIG = {
-  exchangeRate: 1550,
-  flutterwave: {
-    public: "FLWPUBK-2283d9d85c854253a59b635a730a2c8d-X",
-    // Standard v3 Hosted Redirect Base
-    hostedBase: "https://checkout.flutterwave.com/v3/hosted/pay"
-  },
-  paystack: {
-    public: "pk_live_5cd9061dc23feea681bde61151e06200251bb359",
-    // Standard Paystack Hosted Base
-    hostedBase: "https://checkout.paystack.com"
-  }
-};
+// In production, this should be your actual API endpoint.
+const API_BASE_URL = window.location.origin;
 
-const txLedger: Map<string, Transaction> = new Map();
+/**
+ * Robust JSON Fetcher
+ * Prevents crashing when backend returns HTML error pages.
+ */
+const secureFetch = async (url: string, options: RequestInit) => {
+  const response = await fetch(url, {
+    ...options,
+    headers: {
+      ...options.headers,
+      'Accept': 'application/json',
+    },
+  });
+
+  const contentType = response.headers.get('content-type');
+  
+  // If the server didn't return JSON, it's likely an HTML error page (404/500)
+  if (!contentType || !contentType.includes('application/json')) {
+    const text = await response.text();
+    console.error(`[PAYMENT-ERROR] Expected JSON but received:`, text.substring(0, 100));
+    throw new Error(`Server Error: Received an invalid response format (HTML instead of JSON). Status: ${response.status}`);
+  }
+
+  const data = await response.json();
+
+  if (!response.ok) {
+    throw new Error(data.message || `Gateway returned status ${response.status}`);
+  }
+
+  return data;
+};
 
 export const paymentService = {
   /**
-   * INITIALIZE TRANSACTION
-   * This mimics the server-side POST /initialize call.
+   * INITIALIZE
+   * Hits the backend to create a real session with Paystack/Flutterwave.
    */
   initialize: async (
     user: User, 
@@ -38,79 +56,59 @@ export const paymentService = {
     usdAmount: number
   ): Promise<{ authUrl: string, reference: string }> => {
     
-    const timestamp = Date.now();
-    const reference = `NXS-${gateway === 'PAYSTACK' ? 'PS' : 'FW'}-${timestamp}`;
-
-    console.log(`[PAYMENT-INIT] Protocol Sync: ${gateway} | REF: ${reference}`);
+    console.log(`[PAYMENT-INIT] Initiating Secure ${gateway} Handshake...`);
 
     try {
-      if (gateway === 'PAYSTACK') {
-        /**
-         * PAYSTACK PRODUCTION FIX:
-         * In production, the backend returns an 'access_code'. 
-         * We simulate this by encoding the session parameters into a token.
-         */
-        const simulatedAccessCode = `pstk_${Math.random().toString(36).substring(7)}`;
-        
-        // Ensure the URL is ABSOLUTE to prevent local routing errors
-        const authUrl = `${CONFIG.paystack.hostedBase}/${simulatedAccessCode}`;
-        
-        paymentService.saveToLedger(reference, user, usdAmount, gateway, tier);
-        
-        // Append public key and session data as query params to satisfy the hosted engine
-        const finalUrl = `${authUrl}?email=${encodeURIComponent(user.email)}&amount=${usdAmount * CONFIG.exchangeRate * 100}&reference=${reference}&key=${CONFIG.paystack.public}`;
+      const data = await secureFetch(`${API_BASE_URL}/api/payment/initialize`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: user.email,
+          amount: usdAmount,
+          gateway: gateway,
+          tier: tier,
+          userId: user.id,
+          currency: 'USD'
+        })
+      });
 
-        return { authUrl: finalUrl, reference };
+      // Strict validation of the JSON contract
+      const authUrl = data.data?.authorization_url || data.data?.link;
+      const reference = data.data?.reference || data.data?.tx_ref;
 
-      } else {
-        /**
-         * FLUTTERWAVE v3 PRODUCTION FIX:
-         * Standard Hosted Redirect URL: https://checkout.flutterwave.com/v3/hosted/pay
-         * We MUST provide a full absolute link.
-         */
-        const authUrl = CONFIG.flutterwave.hostedBase;
-        
-        paymentService.saveToLedger(reference, user, usdAmount, gateway, tier);
-        
-        const finalUrl = `${authUrl}?public_key=${CONFIG.flutterwave.public}&tx_ref=${reference}&amount=${usdAmount}&currency=USD&customer[email]=${encodeURIComponent(user.email)}&redirect_url=${encodeURIComponent(window.location.origin)}`;
-
-        return { authUrl: finalUrl, reference };
+      if (!authUrl || !authUrl.startsWith('http')) {
+        throw new Error("Handshake Failed: Backend provided an invalid or missing Authorization URI.");
       }
+
+      return { authUrl, reference };
     } catch (error: any) {
-      console.error("GATEWAY_REJECTION:", error);
-      throw new Error("Financial node handshake failed. Check network headers.");
+      // Re-throw with clarity
+      if (error.message.includes('Unexpected token')) {
+        throw new Error("Protocol Error: The server returned HTML. Ensure your /api/payment/initialize endpoint is active and returns JSON.");
+      }
+      throw error;
     }
   },
 
-  saveToLedger: (ref: string, user: User, amount: number, gateway: PaymentGateway, tier: SubscriptionTier) => {
-    txLedger.set(ref, {
-      id: `TX-${Math.random().toString(36).substr(2, 6).toUpperCase()}`,
-      userId: user.id,
-      userEmail: user.email,
-      amount: amount,
-      currency: 'USD',
-      gateway,
-      reference: ref,
-      status: 'PENDING',
-      tier,
-      timestamp: Date.now(),
-      verificationSource: 'POLLING'
-    });
-  },
+  /**
+   * VERIFY
+   * Polling verification from the backend ledger.
+   */
+  verify: async (reference: string): Promise<Transaction | null> => {
+    try {
+      const data = await secureFetch(`${API_BASE_URL}/api/payment/verify?reference=${reference}`, {
+        method: 'GET',
+        headers: { 'Content-Type': 'application/json' }
+      });
 
-  verify: async (reference: string, user: User): Promise<Transaction | null> => {
-    const tx = txLedger.get(reference);
-    if (!tx) throw new Error("Transaction trace purged from node memory.");
-    
-    // Logic for verification (usually hits GET /transaction/verify/:ref on backend)
-    const isConfirmed = Math.random() > 0.05; // 95% success simulation
-
-    if (isConfirmed) {
-      const verifiedTx: Transaction = { ...tx, status: 'SUCCESS', verifiedAt: Date.now() };
-      txLedger.set(reference, verifiedTx);
-      return verifiedTx;
+      if (data.status === 'success' && data.data) {
+        return data.data as Transaction;
+      }
+      
+      return null;
+    } catch (error) {
+      console.error("[VERIFY-ERROR]", error);
+      return null;
     }
-    
-    return tx;
   }
 };

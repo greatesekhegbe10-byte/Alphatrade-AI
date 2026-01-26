@@ -34,23 +34,23 @@ const SubscriptionPortal: React.FC<Props> = ({ user, onSuccess, onCancel }) => {
     setErrorMessage('');
     
     try {
+      // Handshake with backend to get a valid URL
       const response = await paymentService.initialize(user, gateway, selectedTier, activePlan.price);
       
       setActiveRef(response.reference);
       setAuthUrl(response.authUrl);
       
-      // CRITICAL: Ensure we use the full absolute URL for window.open
-      // If window.open fails (popup blocker), we fall back to location.assign
-      const checkoutWindow = window.open(response.authUrl, '_blank', 'noopener,noreferrer');
-      
-      if (!checkoutWindow) {
-        // Fallback to current window redirect if popup is blocked
-        window.location.assign(response.authUrl);
-      }
+      console.log("[STABLE-REDIRECT] Navigating to Gateway:", response.authUrl);
 
+      // We use location.href to ensure absolute navigation outside the SPA router
+      window.location.href = response.authUrl;
+
+      // Note: On some browsers, the script might stop here as the page unloads.
+      // But we set the stage just in case of a delay or new tab behavior.
       setStage('AWAITING_PAYMENT');
     } catch (e: any) {
-      setErrorMessage(e.message || "Financial handshake timed out.");
+      console.error("[CHECKOUT-FAILED]", e);
+      setErrorMessage(e.message || "Financial handshake timed out. The server might be returning an HTML error page.");
       setStage('ERROR');
     }
   };
@@ -60,16 +60,16 @@ const SubscriptionPortal: React.FC<Props> = ({ user, onSuccess, onCancel }) => {
     setErrorMessage('');
     
     try {
-      const tx = await paymentService.verify(activeRef, user);
+      const tx = await paymentService.verify(activeRef);
       if (tx && tx.status === 'SUCCESS') {
         setStage('SUCCESS');
         setTimeout(() => onSuccess(selectedTier), 1500);
       } else {
-        setErrorMessage("Gateway has not confirmed payment yet. Check your mobile app.");
+        setErrorMessage("Payment status pending on gateway. Please complete checkout.");
         setStage('ERROR');
       }
     } catch (e: any) {
-      setErrorMessage(e.message || "Ledger verification rejected.");
+      setErrorMessage("Verification node connection failed. Check your network.");
       setStage('ERROR');
     }
   };
@@ -78,7 +78,6 @@ const SubscriptionPortal: React.FC<Props> = ({ user, onSuccess, onCancel }) => {
     setStage('IDLE');
     setErrorMessage('');
     setActiveRef('');
-    setAuthUrl('');
   };
 
   return (
@@ -89,7 +88,7 @@ const SubscriptionPortal: React.FC<Props> = ({ user, onSuccess, onCancel }) => {
         <div className="flex-1 p-8 md:p-12 space-y-8 border-b md:border-b-0 md:border-r border-white/5">
           <div className="flex justify-between items-start">
             <div className="space-y-4">
-              <h2 className="text-3xl sm:text-4xl font-black text-white flex items-center gap-3 tracking-tighter uppercase">
+              <h2 className="text-3xl sm:text-4xl font-black text-white flex items-center gap-3 tracking-tighter uppercase leading-none">
                 <Zap className="text-blue-500" size={32} /> Activation Hub
               </h2>
               <p className="text-gray-500 text-sm font-medium leading-relaxed">Securely provision institutional trading logic to your account node.</p>
@@ -132,14 +131,14 @@ const SubscriptionPortal: React.FC<Props> = ({ user, onSuccess, onCancel }) => {
              <div className="flex items-center gap-3 text-[10px] text-gray-600 uppercase font-black tracking-widest">
                <ShieldCheck size={18} className="text-emerald-500"/> AES-256 INFRASTRUCTURE
              </div>
-             <p className="text-[10px] text-gray-700 font-bold uppercase tracking-tighter">Linked Identity: {user.email}</p>
+             <p className="text-[10px] text-gray-700 font-bold uppercase tracking-tighter truncate max-w-[200px]">Node: {user.email}</p>
           </div>
         </div>
 
         {/* Right Panel: Transaction Processor */}
         <div className="w-full md:w-[420px] bg-[#0b0e11] p-10 flex flex-col justify-between relative overflow-hidden">
           
-          {/* Global Stage Overlay */}
+          {/* Overlay for Pending/Error states */}
           {(stage !== 'IDLE') && (
             <div className="absolute inset-0 z-50 bg-[#0b0e11] flex flex-col items-center justify-center p-10 text-center space-y-8 animate-in fade-in duration-300">
                {stage === 'SUCCESS' ? (
@@ -165,29 +164,22 @@ const SubscriptionPortal: React.FC<Props> = ({ user, onSuccess, onCancel }) => {
                     {stage === 'AWAITING_PAYMENT' && 'Checkout Active'}
                     {stage === 'VERIFYING' && 'Auditing Ledger...'}
                     {stage === 'SUCCESS' && 'Verified'}
-                    {stage === 'ERROR' && 'Alert'}
+                    {stage === 'ERROR' && 'Handshake Alert'}
                   </h3>
                   <p className="text-[11px] text-gray-500 font-bold uppercase tracking-widest leading-relaxed">
-                    {stage === 'AWAITING_PAYMENT' && `Please complete the payment in the external window.`}
-                    {stage === 'ERROR' && errorMessage}
-                    {stage !== 'AWAITING_PAYMENT' && stage !== 'ERROR' && `NODE_REF: ${activeRef}`}
+                    {stage === 'ERROR' ? errorMessage : `Session active for ${gateway}. Please finalize in the external gateway window.`}
                   </p>
                </div>
 
-               {stage === 'AWAITING_PAYMENT' && (
-                 <div className="w-full space-y-4">
-                    <button onClick={handleManualVerify} className="w-full bg-blue-600 hover:bg-blue-500 py-5 rounded-2xl font-black text-white text-[11px] uppercase tracking-widest flex items-center justify-center gap-3 shadow-2xl active:scale-95 transition-all">
-                      <ShieldCheck size={18} /> Confirm Payment
-                    </button>
-                    <a href={authUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 text-[10px] font-black text-gray-500 uppercase hover:text-white transition-colors">
-                      <ExternalLink size={12}/> Resume Checkout
-                    </a>
-                 </div>
-               )}
-
                {(stage === 'ERROR') && (
                  <button onClick={handleRetry} className="w-full py-4 bg-white/5 border border-white/10 text-[10px] font-black uppercase rounded-2xl hover:bg-white/10 transition-all flex items-center justify-center gap-2">
-                    <RotateCcw size={14}/> Request New Reference
+                    <RotateCcw size={14}/> Request New Session
+                 </button>
+               )}
+
+               {stage === 'AWAITING_PAYMENT' && (
+                 <button onClick={handleManualVerify} className="w-full bg-blue-600 hover:bg-blue-500 py-4 rounded-2xl font-black text-white text-[10px] uppercase tracking-widest flex items-center justify-center gap-2 shadow-xl">
+                   <ShieldCheck size={16}/> I have completed payment
                  </button>
                )}
             </div>
@@ -195,7 +187,7 @@ const SubscriptionPortal: React.FC<Props> = ({ user, onSuccess, onCancel }) => {
 
           <div className="space-y-10">
             <div className="space-y-4">
-              <p className="text-[10px] font-black text-gray-700 uppercase tracking-widest px-1">Infrastructure Gateway</p>
+              <p className="text-[10px] font-black text-gray-700 uppercase tracking-widest px-1">Gateway Protocol</p>
               <div className="space-y-3">
                 <button 
                   onClick={() => setGateway('PAYSTACK')}
@@ -240,9 +232,9 @@ const SubscriptionPortal: React.FC<Props> = ({ user, onSuccess, onCancel }) => {
 
           <div className="space-y-4">
             <button onClick={handleProcessPayment} className="w-full py-6 rounded-2xl font-black text-xs uppercase tracking-[0.3em] flex items-center justify-center gap-3 shadow-2xl transition-all active:scale-95 bg-blue-600 hover:bg-blue-500 text-white shadow-blue-600/20">
-              Establish External Link <ArrowRight size={18} />
+              Launch Secure Checkout <ArrowRight size={18} />
             </button>
-            <p className="text-[9px] text-gray-800 font-bold text-center uppercase tracking-widest leading-none">Security Protocol ACTIVE</p>
+            <p className="text-[9px] text-gray-800 font-bold text-center uppercase tracking-widest leading-none">Neural Security Layer Active</p>
           </div>
         </div>
       </div>
