@@ -102,7 +102,7 @@ const AdminPanel: React.FC<Props> = ({ systemState, onUpdateSystem }) => {
                    {[
                     { id: 'aiModulesEnabled', label: 'AI Core Analysis' },
                     { id: 'forexSignalsEnabled', label: 'Forex Signal Node' },
-                    { id: 'binarySignalsEnabled', label: 'Binary Signal Node' },
+                    { id: 'binarySignalsEnabled', label: 'Binary Signal Node' }
                    ].map(mod => (
                     <div key={mod.id} className="flex items-center justify-between p-3 bg-[#0b0e11] rounded-xl border border-[#1e2329] hover:border-blue-500/30 transition-all group">
                       <span className="text-xs font-bold text-gray-300">{mod.label}</span>

@@ -1,16 +1,18 @@
-
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Menu, Activity, LayoutDashboard, Settings, LogOut, Zap, 
-  ShieldCheck, Database, Book, Layers, TrendingUp, Radiation, Filter,
-  Brain, Calculator, Mail, Lock, User as UserIcon, LogIn, UserPlus, AlertCircle, Loader2, X,
-  FlaskConical, Wifi
+  ShieldCheck, Database, Book, Layers, TrendingUp,
+  Brain, Lock, AlertCircle, Loader2,
+  FlaskConical, LockKeyhole, Calculator, Calendar, MessageSquare, CheckCircle2
 } from 'lucide-react';
-import { ALL_ASSETS, AI_STRATEGIES } from './constants';
+import { ALL_ASSETS, AI_STRATEGIES, TIMEFRAMES } from './constants';
 import { Candle, Signal, MarketType, MarketPair, BrokerAccount, UserSettings, User, SystemState, Timeframe, JournalEntry, LiveSituation } from './types';
-import { generateInitialCandles, updateLastCandle } from './services/marketSimulator';
+import { generateInitialCandles } from './services/marketSimulator';
 import { analyzeMarket, getMarketSituationHUD } from './services/geminiService';
 import { authService } from './services/authService';
+import { paymentService } from './services/paymentService';
+import { detectPatterns } from './services/patternDetectionService';
+import { getNextHighImpactEvent } from './services/newsService';
 import CandleChart from './components/CandleChart';
 import SignalPanel from './components/SignalPanel';
 import SettingsPanel from './components/SettingsPanel';
@@ -21,107 +23,199 @@ import SubscriptionPortal from './components/SubscriptionPortal';
 import BridgePanel from './components/BridgePanel';
 import AnalysisPanel from './components/AnalysisPanel';
 import StrategyLab from './components/StrategyLab';
+import NewsPanel from './components/NewsPanel';
+import RiskCalculator from './components/RiskCalculator';
+import ChatPanel from './components/ChatPanel';
+
+type ViewType = 'TERMINAL' | 'SETTINGS' | 'JOURNAL' | 'HEATMAP' | 'BRIDGE' | 'ANALYSIS' | 'LAB' | 'NEWS' | 'RISK' | 'CHAT';
 
 const App: React.FC = () => {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
-  const [startupStep, setStartupStep] = useState('Initializing Core...');
+  const [startupStep, setStartupStep] = useState('Initializing Institutional Node...');
   const [authMode, setAuthMode] = useState<'LOGIN' | 'SIGNUP'>('LOGIN');
   const [authForm, setAuthForm] = useState({ name: '', email: '', password: '' });
   const [authError, setAuthError] = useState('');
   const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
+  const [paymentStatus, setPaymentStatus] = useState<'IDLE' | 'VERIFYING' | 'SUCCESS' | 'FAILED'>('IDLE');
 
   const [isAdminPortal, setIsAdminPortal] = useState(false);
-  const [activeView, setActiveView] = useState<'TERMINAL' | 'SETTINGS' | 'JOURNAL' | 'HEATMAP' | 'BRIDGE' | 'ANALYSIS' | 'LAB'>('TERMINAL');
+  const [activeView, setActiveView] = useState<ViewType>('TERMINAL');
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
   const [showPaywall, setShowPaywall] = useState(false);
 
   const [systemState, setSystemState] = useState<SystemState>({
-    aiModulesEnabled: true, forexSignalsEnabled: true, binarySignalsEnabled: true,
-    confidenceThreshold: 70, maintenanceMode: false, rolloutPercentage: 100, killSwitchActive: false
+    aiModulesEnabled: true,
+    forexSignalsEnabled: true,
+    binarySignalsEnabled: true,
+    confidenceThreshold: 70,
+    maintenanceMode: false,
+    killSwitchActive: false,
+    remoteEAControl: true
   });
 
+  const [assets, setAssets] = useState<MarketPair[]>(ALL_ASSETS);
   const [selectedPair, setSelectedPair] = useState<MarketPair>(ALL_ASSETS[0]);
   const [marketType, setMarketType] = useState<MarketType>('FOREX');
   const [timeframe, setTimeframe] = useState<Timeframe>('H1');
   const [candles, setCandles] = useState<Candle[]>([]);
   const [signals, setSignals] = useState<Signal[]>([]);
-  const [liveSituation, setLiveSituation] = useState<LiveSituation | undefined>();
+  const [liveSituation, setLiveSituation] = useState<LiveSituation | undefined>(undefined);
   const [journal, setJournal] = useState<JournalEntry[]>([]);
-  const [activeStrategyId, setActiveStrategyId] = useState<string>(AI_STRATEGIES[0].id);
+  
+  // Favorites Persistence
+  const [favorites, setFavorites] = useState<string[]>(() => {
+    try {
+      return JSON.parse(localStorage.getItem('alpha_favorites') || '[]');
+    } catch { return []; }
+  });
+
+  const toggleFavorite = (symbol: string) => {
+    setFavorites(prev => {
+      const next = prev.includes(symbol) ? prev.filter(s => s !== symbol) : [...prev, symbol];
+      localStorage.setItem('alpha_favorites', JSON.stringify(next));
+      return next;
+    });
+  };
 
   const [broker, setBroker] = useState<BrokerAccount>({
-    connected: false, platform: 'NONE', brokerName: '', balance: 10000, equity: 10000, leverage: 100, currency: 'USD', accountNumber: '---', dailyLoss: 0, consecutiveLosses: 0
+    connected: false,
+    platform: 'NONE',
+    brokerName: '',
+    balance: 1000,
+    equity: 1000,
+    leverage: 100,
+    currency: 'USD',
+    accountNumber: '---',
+    dailyLoss: 0,
+    spread: 0.2,
+    latency: 12
   });
 
   const [settings, setSettings] = useState<UserSettings>({
-    riskPercent: 1.0, dailyLossLimit: 1000, maxConsecutiveLosses: 4, personality: 'BALANCED', learningMode: 'BEGINNER',
-    toggles: { newsFilter: true, aiConfirmation: true, sessionFilter: true, psychologicalGuard: true, autoLot: true }
+    riskPercent: 1.0,
+    dailyLossLimit: 100,
+    maxConsecutiveLosses: 4,
+    personality: 'BALANCED',
+    learningMode: 'BEGINNER',
+    toggles: {
+      newsFilter: true,
+      aiConfirmation: true,
+      sessionFilter: true,
+      psychologicalGuard: true,
+      autoLot: true
+    }
   });
 
   const [isAnalyzing, setIsAnalyzing] = useState(false);
 
+  const isExpert = user?.tier === 'INSTITUTIONAL';
+  const isProPlus = user?.tier === 'PRO' || isExpert;
+  const canAccessAI = isExpert;
+
+  // 🌍 GLOBAL PAYMENT CALLBACK LISTENER
+  // Handles standard Flutterwave & Paystack redirect parameters
   useEffect(() => {
-    const handleResize = () => {
-      if (window.innerWidth < 1024) setIsSidebarOpen(false);
-      else setIsSidebarOpen(true);
+    const handlePaymentCallback = async () => {
+      const params = new URLSearchParams(window.location.search);
+      
+      // 1. FLUTTERWAVE PARAMS: ?status=successful&tx_ref=...&transaction_id=...
+      const flwStatus = params.get('status');
+      const flwRef = params.get('tx_ref');
+
+      // 2. PAYSTACK PARAMS: ?trxref=...&reference=...
+      const pstkRef = params.get('trxref') || params.get('reference');
+
+      const txRef = flwRef || pstkRef;
+      const isSuccess = flwStatus === 'successful' || pstkRef; // Paystack presence implies return from gateway
+
+      if (isSuccess && txRef) {
+        setPaymentStatus('VERIFYING');
+        setStartupStep('Verifying Transaction Blockchain...');
+        
+        // Determine Gateway from Reference Prefix or Params
+        const gateway = txRef.includes('FLW') ? 'FLUTTERWAVE' : 'PAYSTACK';
+        
+        const success = await paymentService.verify(txRef, gateway);
+        
+        if (success) {
+          setPaymentStatus('SUCCESS');
+          // Reload user session to get updated tier
+          const activeUser = await authService.verifySession();
+          if (activeUser) setUser(activeUser);
+          
+          // Clean URL without reloading
+          window.history.replaceState({}, '', window.location.pathname);
+          setTimeout(() => setPaymentStatus('IDLE'), 3500);
+        } else {
+          setPaymentStatus('FAILED');
+          setTimeout(() => setPaymentStatus('IDLE'), 3500);
+        }
+      }
     };
-    window.addEventListener('resize', handleResize);
-    return () => window.removeEventListener('resize', handleResize);
+
+    handlePaymentCallback();
   }, []);
+
+  // GLOBAL TICK ENGINE
+  useEffect(() => {
+    if (!user) return;
+    const tickInterval = setInterval(() => {
+      setAssets(prev => prev.map(asset => {
+        const volatility = asset.price * 0.0002;
+        const change = (Math.random() - 0.5) * volatility;
+        return {
+          ...asset,
+          price: asset.price + change,
+          change: asset.change + (Math.random() - 0.5) * 0.01
+        };
+      }));
+    }, 2000);
+    return () => clearInterval(tickInterval);
+  }, [user]);
 
   useEffect(() => {
     const checkAuth = async () => {
-      const steps = [
-        'Syncing Local Data...',
-        'Establishing Global Node Link...',
-        'Verifying Neural Integrity...',
-        'Ready'
-      ];
-      for (const step of steps) {
-        setStartupStep(step);
-        await new Promise(r => setTimeout(r, 600));
-      }
+      setStartupStep('Verifying Node Identity...');
       const activeUser = await authService.verifySession();
-      if (activeUser) setUser(activeUser);
+      if (activeUser) {
+        if (activeUser.subscription && activeUser.subscription.isActive === false) {
+           authService.logout();
+           setAuthError('Node Restricted. Verify account.');
+        } else {
+           setUser(activeUser);
+        }
+      }
       setIsAuthLoading(false);
     };
     checkAuth();
   }, []);
 
   useEffect(() => {
-    const newCandles = generateInitialCandles(selectedPair.price);
-    setCandles(newCandles);
-    const refreshHUD = async () => {
-      const situation = await getMarketSituationHUD(selectedPair.symbol, newCandles);
-      setLiveSituation(situation);
-    };
-    refreshHUD();
-  }, [selectedPair, timeframe]);
+    setCandles(generateInitialCandles(selectedPair.price));
+  }, [selectedPair.symbol, timeframe]);
 
   useEffect(() => {
-    const interval = setInterval(() => {
-      setCandles(prev => {
-        if (prev.length === 0) return prev;
-        const updated = updateLastCandle(prev[prev.length - 1]);
-        return [...prev.slice(0, -1), updated];
-      });
-    }, 3000);
-    return () => clearInterval(interval);
-  }, []);
+    const updateHUD = async () => {
+      if (candles.length > 0) {
+        const situation = await getMarketSituationHUD(selectedPair.symbol, candles);
+        setLiveSituation(situation);
+      }
+    };
+    const timer = setInterval(updateHUD, 15000);
+    updateHUD();
+    return () => clearInterval(timer);
+  }, [selectedPair.symbol, candles]);
 
   const handleAuthAction = async (e: React.FormEvent) => {
     e.preventDefault();
-    setAuthError('');
     setIsAuthSubmitting(true);
+    setAuthError('');
     try {
-      if (authMode === 'LOGIN') {
-        const res = await authService.login(authForm.email, authForm.password);
-        setUser(res.user);
-      } else {
-        const res = await authService.signup(authForm.name, authForm.email, authForm.password);
-        setUser(res.user);
-      }
+      const res = authMode === 'LOGIN' 
+        ? await authService.login(authForm.email, authForm.password)
+        : await authService.signup(authForm.name, authForm.email, authForm.password);
+      setUser(res.user);
     } catch (err: any) {
       setAuthError(err.message || 'Identity verification failed.');
     } finally {
@@ -129,277 +223,227 @@ const App: React.FC = () => {
     }
   };
 
-  const handleLogout = async () => {
-    await authService.logout();
+  const handleLogout = () => {
+    authService.logout();
     setUser(null);
-    setActiveView('TERMINAL');
   };
 
   const handleGenerateSignal = async () => {
     if (!user) return;
-    if (user.tier === 'BASIC') { setShowPaywall(true); return; }
-    if (systemState.killSwitchActive) return; 
-    if (broker.dailyLoss >= settings.dailyLossLimit) return; 
-
+    if (user.tier === 'BASIC' && signals.length >= 5) { setShowPaywall(true); return; }
+    
     setIsAnalyzing(true);
-    const result = await analyzeMarket(selectedPair.symbol, candles, marketType, settings.personality);
+    if (user.tier === 'BASIC') await new Promise(r => setTimeout(r, 4500));
+
+    const patterns = detectPatterns(candles);
+    const nextNews = getNextHighImpactEvent(selectedPair.base);
+
+    const result = await analyzeMarket(
+      selectedPair.symbol,
+      candles,
+      marketType,
+      timeframe,
+      patterns,
+      nextNews,
+      settings.personality,
+      broker.balance,
+      settings.riskPercent
+    );
+
     if (result.type) {
-       const newSignal = { ...result, timeframe, strategyId: activeStrategyId } as Signal;
+       const newSignal = { ...result, timestamp: Date.now() } as Signal;
        setSignals(prev => [newSignal, ...prev].slice(0, 30));
     }
     setIsAnalyzing(false);
   };
 
-  const handleSelectView = (view: typeof activeView) => {
+  const handleSelectView = (view: ViewType) => {
+    if (view === 'LAB' && !isProPlus) { setShowPaywall(true); return; }
+    if (view === 'ANALYSIS' && !canAccessAI) { setShowPaywall(true); return; }
     setActiveView(view);
     if (window.innerWidth < 1024) setIsSidebarOpen(false);
   };
 
-  if (isAuthLoading) {
+  if (isAuthLoading || paymentStatus === 'VERIFYING') {
     return (
       <div className="h-screen bg-[#0b0e11] flex flex-col items-center justify-center space-y-6">
-        <div className="relative">
-          <Activity className="text-blue-500 animate-spin-slow" size={64} />
-          <div className="absolute inset-0 flex items-center justify-center">
-            <Wifi size={24} className="text-blue-500/50" />
-          </div>
+        <Activity className="text-blue-500 animate-spin-slow" size={64} />
+        <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-500 animate-pulse">{startupStep}</p>
+      </div>
+    );
+  }
+
+  if (paymentStatus === 'SUCCESS') {
+    return (
+      <div className="h-screen bg-[#0b0e11] flex flex-col items-center justify-center space-y-6 animate-in zoom-in">
+        <div className="size-20 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20 shadow-[0_0_30px_rgba(16,185,129,0.3)]">
+           <CheckCircle2 className="text-emerald-500" size={40} />
         </div>
         <div className="text-center space-y-2">
-          <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-500">{startupStep}</p>
-          <div className="w-48 h-1 bg-white/5 rounded-full overflow-hidden mx-auto">
-            <div className="h-full bg-blue-600 animate-pulse w-full" />
-          </div>
+           <h2 className="text-2xl font-black text-white uppercase tracking-tighter">Payment Verified</h2>
+           <p className="text-[10px] font-black uppercase tracking-[0.4em] text-emerald-500">Unlocking Institutional Modules...</p>
         </div>
       </div>
     );
   }
 
-  if (isAdminPortal) return <AdminPortal systemState={systemState} onUpdateSystem={(u) => setSystemState(s => ({...s, ...u}))} onExit={() => setIsAdminPortal(false)} />;
+  if (isAdminPortal) {
+    return (
+      <AdminPortal 
+        systemState={systemState} 
+        onUpdateSystem={(upd) => setSystemState({...systemState, ...upd})} 
+        onExit={() => setIsAdminPortal(false)} 
+      />
+    );
+  }
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#0b0e11] flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
-        <div className="absolute inset-0 opacity-5 pointer-events-none" style={{ backgroundImage: 'linear-gradient(#2563eb 1px, transparent 1px), linear-gradient(90deg, #2563eb 1px, transparent 1px)', backgroundSize: '40px 40px' }} />
-        <div className="w-full max-w-lg bg-[#161a1e] border border-white/5 p-6 sm:p-12 rounded-[40px] shadow-2xl relative z-10 space-y-10 animate-in fade-in zoom-in-95 duration-700">
+      <div className="min-h-screen bg-[#0b0e11] flex items-center justify-center p-6 relative">
+        <div className="w-full max-w-lg bg-[#161a1e] border border-white/5 p-12 rounded-[40px] shadow-2xl space-y-10 animate-in fade-in zoom-in-95 duration-700">
           <div className="text-center space-y-3">
-             <Activity className="text-blue-500 size-16 mx-auto mb-4 animate-spin-slow" />
-             <h1 className="text-4xl sm:text-6xl font-black tracking-tighter text-white uppercase leading-none">Alpha<span className="text-blue-500">Trade</span></h1>
-             <p className="text-gray-600 text-[10px] font-black uppercase tracking-[0.4em] block">Institutional Neural Architecture</p>
+             <ShieldCheck className="text-blue-500 size-16 mx-auto mb-4" />
+             <h1 className="text-4xl font-black text-white uppercase leading-none tracking-tighter">Alpha<span className="text-blue-500">Trade</span> AI</h1>
+             <p className="text-gray-600 text-[10px] font-black uppercase tracking-widest">Forex Institutional Verification</p>
           </div>
           <div className="flex bg-[#0b0e11] p-1.5 rounded-2xl border border-white/5">
-             <button onClick={() => { setAuthMode('LOGIN'); setAuthError(''); }} className={`flex-1 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${authMode === 'LOGIN' ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-600 hover:text-white'}`}>Logon</button>
-             <button onClick={() => { setAuthMode('SIGNUP'); setAuthError(''); }} className={`flex-1 py-3.5 rounded-xl text-[11px] font-black uppercase tracking-widest transition-all ${authMode === 'SIGNUP' ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-600 hover:text-white'}`}>Init</button>
+             <button onClick={() => setAuthMode('LOGIN')} className={`flex-1 py-3.5 rounded-xl text-[11px] font-black uppercase transition-all ${authMode === 'LOGIN' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-600'}`}>Logon</button>
+             <button onClick={() => setAuthMode('SIGNUP')} className={`flex-1 py-3.5 rounded-xl text-[11px] font-black uppercase transition-all ${authMode === 'SIGNUP' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-600'}`}>Init Node</button>
           </div>
           <form onSubmit={handleAuthAction} className="space-y-5">
             {authMode === 'SIGNUP' && (
-              <div className="space-y-2">
-                <label className="text-[9px] font-black text-gray-700 uppercase tracking-widest ml-1">Identity</label>
-                <div className="relative"><UserIcon className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-800" size={18} /><input required type="text" value={authForm.name} onChange={(e) => setAuthForm({...authForm, name: e.target.value})} placeholder="Operator Name" className="w-full bg-[#0b0e11] border border-white/5 pl-12 pr-4 py-4 rounded-2xl text-sm font-bold focus:border-blue-500 outline-none transition-all placeholder:text-gray-900" /></div>
-              </div>
+              <input required type="text" value={authForm.name} onChange={(e) => setAuthForm({...authForm, name: e.target.value})} placeholder="Operator Name" className="w-full bg-[#0b0e11] border border-white/5 px-6 py-4 rounded-2xl text-sm font-bold focus:border-blue-500 outline-none transition-all" />
             )}
-            <div className="space-y-2">
-              <label className="text-[9px] font-black text-gray-700 uppercase tracking-widest ml-1">Access Email</label>
-              <div className="relative"><Mail className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-800" size={18} /><input required type="email" value={authForm.email} onChange={(e) => setAuthForm({...authForm, email: e.target.value})} placeholder="trader@nexus.io" className="w-full bg-[#0b0e11] border border-white/5 pl-12 pr-4 py-4 rounded-2xl text-sm font-bold focus:border-blue-500 outline-none transition-all placeholder:text-gray-900" /></div>
-            </div>
-            <div className="space-y-2">
-              <label className="text-[9px] font-black text-gray-700 uppercase tracking-widest ml-1">Passphrase</label>
-              <div className="relative"><Lock className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-800" size={18} /><input required type="password" value={authForm.password} onChange={(e) => setAuthForm({...authForm, password: e.target.value})} placeholder="••••••••" className="w-full bg-[#0b0e11] border border-white/5 pl-12 pr-4 py-4 rounded-2xl text-sm font-bold focus:border-blue-500 outline-none transition-all placeholder:text-gray-900" /></div>
-            </div>
-            {authError && <div className="flex items-center gap-3 p-4 bg-red-500/10 border border-red-500/20 rounded-2xl animate-in shake"><AlertCircle className="text-red-500 shrink-0" size={18} /><p className="text-[10px] font-black text-red-500 uppercase leading-none">{authError}</p></div>}
-            <button disabled={isAuthSubmitting} type="submit" className="w-full bg-blue-600 hover:bg-blue-500 py-5 rounded-[24px] font-black text-white text-xs uppercase tracking-widest transition-all shadow-2xl active:scale-95 flex items-center justify-center gap-3">{isAuthSubmitting ? <Loader2 className="animate-spin" size={20} /> : (authMode === 'LOGIN' ? <LogIn size={20}/> : <UserPlus size={20}/>)}{isAuthSubmitting ? "Linking..." : (authMode === 'LOGIN' ? "Establish Link" : "Activate Protocol")}</button>
+            <input required type="email" value={authForm.email} onChange={(e) => setAuthForm({...authForm, email: e.target.value})} placeholder="trader@nexus.io" className="w-full bg-[#0b0e11] border border-white/5 px-6 py-4 rounded-2xl text-sm font-bold focus:border-blue-500 outline-none transition-all" />
+            <input required type="password" value={authForm.password} onChange={(e) => setAuthForm({...authForm, password: e.target.value})} placeholder="••••••••" className="w-full bg-[#0b0e11] border border-white/5 px-6 py-4 rounded-2xl text-sm font-bold focus:border-blue-500 outline-none transition-all" />
+            {authError && <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl"><p className="text-[10px] font-black text-red-500 uppercase">{authError}</p></div>}
+            <button disabled={isAuthSubmitting} type="submit" className="w-full bg-blue-600 hover:bg-blue-500 py-5 rounded-[24px] font-black text-white text-xs uppercase tracking-widest transition-all shadow-xl">
+              {isAuthSubmitting ? "Linking..." : "Establish Link"}
+            </button>
           </form>
-          <div className="flex justify-center gap-6"><button onClick={() => setIsAdminPortal(true)} className="text-[10px] text-gray-700 font-black uppercase tracking-widest hover:text-white transition-all flex items-center gap-2"><Radiation size={14}/> Command Node</button></div>
+          <button onClick={() => setIsAdminPortal(true)} className="w-full text-center text-gray-700 text-[10px] font-black uppercase tracking-widest hover:text-white transition-all">Command Terminal</button>
         </div>
       </div>
     );
   }
 
+  const sidebarItems = [
+    { id: 'TERMINAL' as ViewType, icon: LayoutDashboard, label: 'Terminal', locked: false },
+    { id: 'HEATMAP' as ViewType, icon: Layers, label: 'Dashboard', locked: false },
+    { id: 'NEWS' as ViewType, icon: Calendar, label: 'Calendar', locked: false },
+    { id: 'RISK' as ViewType, icon: Calculator, label: 'Risk Sizer', locked: false },
+    { id: 'LAB' as ViewType, icon: FlaskConical, label: 'Strategy Lab', locked: !isProPlus },
+    { id: 'ANALYSIS' as ViewType, icon: Brain, label: 'Neural Lab', locked: !canAccessAI },
+    { id: 'CHAT' as ViewType, icon: MessageSquare, label: 'Command Hub', locked: false },
+    { id: 'JOURNAL' as ViewType, icon: Book, label: 'Journal', locked: false },
+    { id: 'BRIDGE' as ViewType, icon: Database, label: 'Broker Hub', locked: false },
+    { id: 'SETTINGS' as ViewType, icon: Settings, label: 'Prefs', locked: false }
+  ];
+
   return (
-    <div className="flex h-screen w-full bg-[#0b0e11] text-[#eaecef] overflow-hidden relative">
+    <div className="flex h-screen w-full bg-[#0b0e11] text-[#eaecef] overflow-hidden select-none">
       {showPaywall && <SubscriptionPortal user={user} onSuccess={(tier) => { setUser({...user, tier}); setShowPaywall(false); }} onCancel={() => setShowPaywall(false)} />}
       
-      {isSidebarOpen && window.innerWidth < 1024 && (
-        <div className="fixed inset-0 bg-black/80 backdrop-blur-md z-[40]" onClick={() => setIsSidebarOpen(false)} />
-      )}
-
-      <aside className={`fixed lg:static inset-y-0 left-0 z-[50] ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full lg:translate-x-0 w-72 lg:w-20'} shrink-0 bg-[#161a1e] border-r border-white/5 transition-all duration-300 flex flex-col shadow-2xl`}>
-        <div className="p-8 h-20 border-b border-white/5 flex items-center justify-between overflow-hidden">
-          <div className="flex items-center gap-4">
-            <ShieldCheck className="text-blue-500 shrink-0" size={28} />
-            {(isSidebarOpen || window.innerWidth < 1024) && <h1 className="font-black text-2xl tracking-tighter text-white uppercase">AlphaTrade</h1>}
-          </div>
-          {window.innerWidth < 1024 && (
-            <button onClick={() => setIsSidebarOpen(false)} className="text-gray-500 hover:text-white p-2"><X size={24}/></button>
-          )}
+      <aside className={`fixed lg:static inset-y-0 left-0 z-[50] ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full lg:translate-x-0 w-72 lg:w-20'} shrink-0 bg-[#161a1e] border-r border-white/5 transition-all duration-300 flex flex-col`}>
+        <div className="p-8 h-20 border-b border-white/5 flex items-center gap-4">
+          <ShieldCheck className="text-blue-500 shrink-0" size={28} />
+          {isSidebarOpen && <h1 className="font-black text-2xl tracking-tighter text-white uppercase">AlphaTrade</h1>}
         </div>
         <nav className="p-5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1">
-          <button onClick={() => handleSelectView('TERMINAL')} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeView === 'TERMINAL' ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-500 hover:bg-white/5'}`}>
-            <LayoutDashboard size={22} /> {(isSidebarOpen || window.innerWidth < 1024) && <span className="text-[11px] font-black uppercase tracking-widest">Terminal</span>}
-          </button>
-          <button onClick={() => handleSelectView('LAB')} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeView === 'LAB' ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-500 hover:bg-white/5'}`}>
-            <FlaskConical size={22} /> {(isSidebarOpen || window.innerWidth < 1024) && <span className="text-[11px] font-black uppercase tracking-widest">Strategy Lab</span>}
-          </button>
-          <button onClick={() => handleSelectView('ANALYSIS')} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeView === 'ANALYSIS' ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-500 hover:bg-white/5'}`}>
-            <Brain size={22} /> {(isSidebarOpen || window.innerWidth < 1024) && <span className="text-[11px] font-black uppercase tracking-widest">Neural Lab</span>}
-          </button>
-          <button onClick={() => handleSelectView('HEATMAP')} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeView === 'HEATMAP' ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-500 hover:bg-white/5'}`}>
-            <Layers size={22} /> {(isSidebarOpen || window.innerWidth < 1024) && <span className="text-[11px] font-black uppercase tracking-widest">Heatmap</span>}
-          </button>
-          <button onClick={() => handleSelectView('JOURNAL')} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeView === 'JOURNAL' ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-500 hover:bg-white/5'}`}>
-            <Book size={22} /> {(isSidebarOpen || window.innerWidth < 1024) && <span className="text-[11px] font-black uppercase tracking-widest">Journal</span>}
-          </button>
-          <button onClick={() => handleSelectView('BRIDGE')} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeView === 'BRIDGE' ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-500 hover:bg-white/5'}`}>
-            <Database size={22} /> {(isSidebarOpen || window.innerWidth < 1024) && <span className="text-[11px] font-black uppercase tracking-widest">Broker Hub</span>}
-          </button>
-          <button onClick={() => handleSelectView('SETTINGS')} className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all ${activeView === 'SETTINGS' ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-500 hover:bg-white/5'}`}>
-            <Settings size={22} /> {(isSidebarOpen || window.innerWidth < 1024) && <span className="text-[11px] font-black uppercase tracking-widest">Prefs</span>}
-          </button>
-          
-          <div className="pt-8">
-             <div className="flex justify-between items-center px-4 mb-5">
-                {(isSidebarOpen || window.innerWidth < 1024) && <p className="text-[11px] font-black text-gray-700 uppercase tracking-widest">Neural Watchlist</p>}
-                <Filter size={14} className="text-gray-700" />
-             </div>
-             <div className="space-y-1.5 max-h-[35vh] overflow-y-auto custom-scrollbar">
-                {ALL_ASSETS.map(pair => (
-                  <button key={pair.symbol} onClick={() => { setSelectedPair(pair); handleSelectView('TERMINAL'); }} className={`w-full flex items-center justify-between p-3 rounded-xl transition-all ${selectedPair.symbol === pair.symbol && activeView === 'TERMINAL' ? 'bg-blue-600/10 text-blue-500 border border-blue-500/20' : 'hover:bg-white/5 text-gray-600'}`}>
-                    <span className="text-[11px] font-black">{pair.symbol}</span>
-                    {(isSidebarOpen || window.innerWidth < 1024) && <span className={`text-[10px] font-bold ${pair.change >= 0 ? 'text-green-500' : 'text-red-500'}`}>{pair.change >= 0 ? '+' : ''}{pair.change.toFixed(2)}%</span>}
-                  </button>
-                ))}
-             </div>
-          </div>
+          {sidebarItems.map(view => (
+            <button 
+              key={view.id} 
+              onClick={() => handleSelectView(view.id)} 
+              className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all relative ${activeView === view.id ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-500 hover:bg-white/5'}`}
+            >
+              <view.icon size={22} /> 
+              {isSidebarOpen && <span className="text-[11px] font-black uppercase tracking-widest">{view.label}</span>}
+              {view.locked && <LockKeyhole size={12} className="absolute right-4 text-gray-700" />}
+            </button>
+          ))}
         </nav>
-        <div className="p-6 border-t border-white/5 bg-black/20">
-           <button onClick={() => setShowPaywall(true)} className="w-full mb-4 p-4 bg-[#0b0e11] rounded-2xl flex items-center gap-4 border border-white/5 hover:border-blue-500/30 transition-all shadow-xl">
-              <div className="size-10 rounded-xl bg-blue-600 flex items-center justify-center font-black text-white shrink-0 shadow-lg shadow-blue-600/20">{user.name ? user.name[0].toUpperCase() : user.email[0].toUpperCase()}</div>
-              {(isSidebarOpen || window.innerWidth < 1024) && (
-                <div className="text-left overflow-hidden">
-                  <p className="text-[10px] font-black text-white truncate w-32 uppercase tracking-widest">{user.name || 'Nexus Operator'}</p>
-                  <p className="text-[9px] font-bold text-gray-700 uppercase tracking-tighter">{user.tier} Node Active</p>
-                </div>
-              )}
+        
+        <div className="p-6 border-t border-white/5 space-y-4">
+           <button onClick={() => setShowPaywall(true)} className="w-full p-4 bg-white/5 rounded-xl border border-white/10 text-left hover:border-blue-500/30 transition-all">
+              <p className="text-[8px] font-black text-gray-700 uppercase">Tier Level</p>
+              <p className="text-[9px] font-bold text-blue-500 uppercase">{user.tier}</p>
            </button>
-           <button onClick={handleLogout} className="w-full flex items-center gap-4 p-4 text-gray-700 hover:text-red-500 transition-all font-black uppercase text-[11px] tracking-[0.2em]">
-              <LogOut size={22} /> {(isSidebarOpen || window.innerWidth < 1024) && "Shutdown"}
+           <button onClick={handleLogout} className="w-full flex items-center gap-4 p-4 text-gray-700 hover:text-red-500 transition-all font-black uppercase text-[11px]">
+              <LogOut size={22} /> {isSidebarOpen && "Shutdown"}
            </button>
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0">
-        <header className="h-20 bg-[#161a1e] border-b border-white/5 flex items-center justify-between px-6 sm:px-10 shadow-2xl z-20">
-           <div className="flex items-center gap-4 sm:gap-8">
-              <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 text-gray-500 hover:text-white transition-all bg-[#0b0e11] rounded-xl border border-white/5"><Menu size={22}/></button>
-              <div className="flex bg-[#0b0e11] p-1.5 rounded-2xl border border-white/5 shadow-inner max-w-[150px] sm:max-w-none overflow-x-auto no-scrollbar">
-                 {['FOREX', 'BINARY', 'INDICES', 'COMMODITIES', 'CRYPTO'].map(cat => (
-                   <button key={cat} onClick={() => setMarketType(cat as MarketType)} className={`px-4 sm:px-8 py-2.5 rounded-xl text-[10px] sm:text-[11px] font-black tracking-widest transition-all whitespace-nowrap ${marketType === cat ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-700 hover:text-gray-300'}`}>{cat}</button>
+      <div className="flex-1 flex flex-col min-w-0 z-10">
+        <header className="h-20 bg-[#161a1e] border-b border-white/5 flex items-center justify-between px-10 shadow-2xl">
+           <div className="flex items-center gap-8">
+              <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 text-gray-500 hover:text-white bg-[#0b0e11] rounded-xl border border-white/5"><Menu size={22}/></button>
+              <div className="flex bg-[#0b0e11] p-1.5 rounded-2xl border border-white/5">
+                 {['FOREX', 'BINARY', 'INDICES', 'COMMODITIES'].map(cat => (
+                   <button 
+                    key={cat} 
+                    onClick={() => setMarketType(cat as MarketType)} 
+                    className={`relative px-6 py-2.5 rounded-xl text-[11px] font-black tracking-widest transition-all ${marketType === cat ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-700 hover:text-gray-300'}`}
+                   >
+                    {cat}
+                    {cat === 'BINARY' && !isExpert && <LockKeyhole size={10} className="absolute top-1 right-2 text-red-500/50" />}
+                   </button>
                  ))}
               </div>
            </div>
 
-           <div className="flex items-center gap-4 sm:gap-8">
-              {systemState.killSwitchActive ? (
-                <div className="px-5 sm:px-10 py-3 bg-red-600 rounded-2xl font-black text-[10px] sm:text-xs text-white uppercase flex items-center gap-3 animate-pulse border-2 border-red-500 shadow-2xl shadow-red-600/20">
-                   <Radiation size={18}/> TERMINAL HALTED
-                </div>
-              ) : (
-                <button 
-                  onClick={handleGenerateSignal} 
-                  disabled={isAnalyzing || (broker.dailyLoss >= settings.dailyLossLimit)} 
-                  className={`px-6 sm:px-12 py-3.5 rounded-2xl font-black text-[10px] sm:text-xs uppercase tracking-[0.3em] flex items-center gap-3 shadow-2xl transition-all active:scale-95 ${isAnalyzing ? 'bg-blue-600/50 cursor-not-allowed opacity-70' : (broker.dailyLoss >= settings.dailyLossLimit) ? 'bg-red-600 shadow-red-600/20 text-white' : 'bg-blue-600 hover:bg-blue-500 shadow-blue-600/30 text-white'}`}
-                >
-                   {isAnalyzing ? <Activity size={18} className="animate-spin" /> : <Zap size={18} />}
-                   <span className="hidden sm:inline">{isAnalyzing ? "Processing Neural Link..." : (broker.dailyLoss >= settings.dailyLossLimit) ? "RISK LOCKED" : "Generate Analysis"}</span>
-                   <span className="sm:hidden">{isAnalyzing ? "..." : (broker.dailyLoss >= settings.dailyLossLimit) ? "LOCKED" : "RUN"}</span>
-                </button>
-              )}
-           </div>
+           <button 
+             onClick={handleGenerateSignal} 
+             disabled={isAnalyzing} 
+             className="px-12 py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] flex items-center gap-3 shadow-2xl transition-all"
+           >
+              {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
+              {isAnalyzing ? (user.tier === 'BASIC' ? "Institutional Scanning..." : "Analyzing...") : "Run Analysis"}
+           </button>
         </header>
 
-        <main className="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
-          <div className="flex-1 flex flex-col min-w-0 overflow-y-auto custom-scrollbar">
-             {activeView === 'TERMINAL' ? (
-               <>
-                 <div className="flex-1 min-h-[400px] sm:min-h-[500px] relative">
-                    <CandleChart 
-                      candles={candles} 
-                      symbol={selectedPair.symbol} 
-                      timeframe={timeframe} 
-                      onTimeframeChange={setTimeframe} 
-                      signals={signals} 
-                      liveSituation={liveSituation}
-                    />
-                 </div>
-                 <div className="h-64 sm:h-80 shrink-0 bg-[#161a1e] border-t border-white/5 p-6 sm:p-10 flex flex-col sm:flex-row gap-6 sm:gap-10 overflow-y-auto sm:overflow-x-auto">
-                    <div className="min-w-0 sm:min-w-[500px] flex-1 bg-[#0b0e11] rounded-[40px] border border-white/5 p-6 sm:p-10 flex flex-col justify-between shadow-2xl relative overflow-hidden group">
-                       <div className="flex justify-between items-center mb-4">
-                          <p className="text-[11px] font-black text-gray-700 uppercase tracking-widest flex items-center gap-3"><TrendingUp size={16}/> Profit Progression</p>
-                          <span className="text-[10px] text-emerald-500 font-black uppercase tracking-tighter bg-emerald-500/10 px-2 py-0.5 rounded-lg">Accuracy: 88.4%</span>
-                       </div>
-                       <div className="flex items-end gap-1.5 h-16 sm:h-32">
-                          {[25, 45, 55, 40, 65, 85, 75, 95, 110, 100].map((h, i) => (
-                            <div key={i} className="flex-1 bg-blue-600/10 border-t-4 border-blue-500 rounded-t-xl transition-all duration-1000 group-hover:bg-blue-600/30" style={{ height: `${(h/110)*100}%` }} />
-                          ))}
-                       </div>
-                    </div>
-                    <div className="w-full sm:w-[450px] shrink-0 bg-[#0b0e11] rounded-[40px] border border-white/5 p-8 sm:p-12 flex flex-col justify-between shadow-2xl relative overflow-hidden group">
-                       <div className="absolute -top-10 -right-10 p-4 opacity-5 group-hover:opacity-10 transition-opacity">
-                          <Brain size={180} />
-                       </div>
-                       <div className="space-y-2">
-                          <p className="text-[11px] font-black text-gray-700 uppercase tracking-widest">Drawdown Cap</p>
-                          <p className="text-3xl sm:text-5xl font-black text-white tracking-tighter mono">${broker.dailyLoss.toFixed(2)} <span className="text-gray-800 text-xl sm:text-2xl">/ ${settings.dailyLossLimit}</span></p>
-                       </div>
-                       <div className="w-full h-3 bg-white/5 rounded-full overflow-hidden mt-6 shadow-inner">
-                          <div className={`h-full bg-blue-600 transition-all duration-1000 shadow-[0_0_15px_rgba(37,99,235,0.5)]`} style={{ width: `${Math.min(100, (broker.dailyLoss / settings.dailyLossLimit) * 100)}%` }} />
-                       </div>
-                    </div>
-                 </div>
-               </>
-             ) : activeView === 'SETTINGS' ? (
-               <SettingsPanel settings={settings} setSettings={setSettings} />
-             ) : activeView === 'JOURNAL' ? (
-               <JournalPanel journal={journal} setJournal={setJournal} />
-             ) : activeView === 'HEATMAP' ? (
-               <HeatmapPanel onSelectPair={(p) => { setSelectedPair(p); handleSelectView('TERMINAL'); }} />
-             ) : activeView === 'BRIDGE' ? (
-               <BridgePanel broker={broker} setBroker={setBroker} />
-             ) : activeView === 'ANALYSIS' ? (
-               <AnalysisPanel symbol={selectedPair.symbol} candles={candles} />
-             ) : activeView === 'LAB' ? (
-               <StrategyLab symbol={selectedPair.symbol} candles={candles} />
-             ) : null}
+        <main className="flex-1 flex overflow-hidden">
+          <div className="flex-1 overflow-y-auto custom-scrollbar">
+             {activeView === 'TERMINAL' && <CandleChart candles={candles} symbol={selectedPair.symbol} timeframe={timeframe} onTimeframeChange={setTimeframe} signals={signals} liveSituation={liveSituation} />}
+             {activeView === 'SETTINGS' && <SettingsPanel settings={settings} setSettings={setSettings} canAccessAI={canAccessAI} />}
+             {activeView === 'JOURNAL' && <JournalPanel journal={journal} setJournal={setJournal} />}
+             {activeView === 'HEATMAP' && (
+                <HeatmapPanel 
+                  pairs={assets.filter(a => a.category === marketType)} 
+                  onSelectPair={(p) => { setSelectedPair(p); setActiveView('TERMINAL'); }} 
+                  favorites={favorites}
+                  onToggleFavorite={toggleFavorite}
+                  userTier={user.tier}
+                />
+             )}
+             {activeView === 'BRIDGE' && <BridgePanel broker={broker} setBroker={setBroker} />}
+             {activeView === 'ANALYSIS' && <AnalysisPanel symbol={selectedPair.symbol} candles={candles} />}
+             {activeView === 'LAB' && <StrategyLab candles={candles} symbol={selectedPair.symbol} />}
+             {activeView === 'NEWS' && <NewsPanel />}
+             {activeView === 'RISK' && <RiskCalculator />}
+             {activeView === 'CHAT' && <ChatPanel />}
           </div>
 
           {activeView === 'TERMINAL' && (
-            <div className="w-full lg:w-[420px] shrink-0 border-t lg:border-t-0 lg:border-l border-white/5 h-[450px] lg:h-full flex flex-col bg-[#161a1e] shadow-2xl">
+            <div className="w-[420px] shrink-0 border-l border-white/5 bg-[#161a1e] flex flex-col">
                <SignalPanel 
                  signals={signals} 
                  activeType={marketType} 
                  broker={broker} 
                  settings={settings} 
-                 onSelectStrategy={setActiveStrategyId} 
-                 activeStrategyId={activeStrategyId}
                  onMarkTrade={(s) => {
-                    const win = Math.random() > 0.25; // High win rate sim
-                    const pnl = win ? 220 : -100;
-                    setJournal(prev => [{
-                      id: Math.random().toString(36).substr(2, 9),
-                      timestamp: Date.now(),
-                      pair: s.pair,
-                      type: s.type,
-                      result: win ? 'WIN' : 'LOSS',
-                      pnl,
-                      emotion: 'CALM',
-                      aiFeedback: "Signal execution within predicted liquidity parameters. High accuracy node confirmation.",
-                      signalHash: s.hash
+                    const win = Math.random() > 0.3;
+                    setJournal(prev => [{ 
+                      id: Math.random().toString(), 
+                      timestamp: Date.now(), 
+                      pair: s.pair, 
+                      type: s.type, 
+                      result: win ? 'WIN' : 'LOSS', 
+                      pnl: win ? 200 : -100, 
+                      emotion: 'CALM', 
+                      aiFeedback: "Verified SMC entry execution.", 
+                      signalHash: s.hash 
                     }, ...prev]);
-                    setBroker(b => ({
-                      ...b, 
-                      balance: b.balance + pnl, 
-                      dailyLoss: pnl < 0 ? b.dailyLoss + Math.abs(pnl) : b.dailyLoss,
-                      consecutiveLosses: pnl < 0 ? b.consecutiveLosses + 1 : 0
-                    }));
                  }}
                />
             </div>

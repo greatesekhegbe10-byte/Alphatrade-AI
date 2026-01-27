@@ -15,14 +15,13 @@ interface Props {
 }
 
 const StrategyLab: React.FC<Props> = ({ candles, symbol }) => {
-  const [selectedStrategy, setSelectedStrategy] = useState<Strategy>(AI_STRATEGIES[3]); // RSI Divergence default
+  const [selectedStrategy, setSelectedStrategy] = useState<Strategy>(AI_STRATEGIES[3]);
   const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
   const [isRunning, setIsRunning] = useState(false);
   const [risk, setRisk] = useState(1.0);
 
   const handleRunBacktest = async () => {
     setIsRunning(true);
-    // Add small artificial delay for UX
     await new Promise(resolve => setTimeout(resolve, 800));
     const result = await strategyEngine.runBacktest(candles, selectedStrategy.id, risk);
     setBacktestResult(result);
@@ -56,7 +55,6 @@ const StrategyLab: React.FC<Props> = ({ candles, symbol }) => {
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-        {/* Strategy Configuration */}
         <section className="bg-[#161a1e] border border-white/5 p-6 sm:p-8 rounded-[40px] space-y-8 shadow-2xl">
           <h3 className="text-lg font-black text-white uppercase tracking-tighter flex items-center gap-3">
             <Settings2 size={20} className="text-purple-500" /> Parameters
@@ -99,7 +97,6 @@ const StrategyLab: React.FC<Props> = ({ candles, symbol }) => {
           </div>
         </section>
 
-        {/* Backtest Results */}
         <section className="lg:col-span-2 space-y-8">
            {backtestResult ? (
              <div className="grid grid-cols-1 md:grid-cols-2 gap-8 animate-in zoom-in-95 duration-500">
@@ -135,7 +132,7 @@ const StrategyLab: React.FC<Props> = ({ candles, symbol }) => {
                       </div>
                       <div className="h-24 flex items-end gap-1">
                         {backtestResult.equityCurve.slice(-20).map((val, i) => (
-                          <div key={i} className="flex-1 bg-purple-600/20 border-t-2 border-purple-500 rounded-t-lg" style={{ height: `${(val / 11000) * 100}%` }} />
+                          <div key={i} className="flex-1 bg-purple-600/20 border-t-2 border-purple-500 rounded-t-lg" style={{ height: `${(val / (backtestResult.equityCurve[0] || 11000)) * 100}%` }} />
                         ))}
                       </div>
                    </div>
@@ -186,7 +183,7 @@ const StrategyLab: React.FC<Props> = ({ candles, symbol }) => {
                  {[
                    { label: 'RSI Status', val: 'Oversold (24.2)', status: 'BUY_BIAS' },
                    { label: 'Volatility Band', val: 'Compressing', status: 'NEUTRAL' },
-                   { label: 'SMC Structure', val: 'HH / HL Established', status: 'BULLISH' },
+                   { label: 'SMC Structure', val: 'HH / HL Established', status: 'BULLISH' }
                  ].map((scan, i) => (
                    <div key={i} className="p-5 bg-[#0b0e11] rounded-3xl border border-white/5 flex flex-col justify-between">
                       <span className="text-[8px] font-black text-gray-700 uppercase tracking-widest">{scan.label}</span>
