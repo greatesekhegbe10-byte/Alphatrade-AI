@@ -1,7 +1,7 @@
 import React, { useMemo, useRef, useEffect, useState } from 'react';
-import { Candle, Timeframe, Signal, LiveSituation } from '../types';
-import { Activity, Zap } from 'lucide-react';
-import { TIMEFRAMES } from '../constants';
+import { Candle, Timeframe, Signal, LiveSituation, MarketPair, SubscriptionTier } from '../types';
+import { Activity, Zap, ChevronDown, Search, LockKeyhole } from 'lucide-react';
+import { TIMEFRAMES, BASIC_ACCESS_PAIRS } from '../constants';
 import { detectPatterns } from '../services/patternDetectionService';
 
 interface Props {
@@ -11,29 +11,46 @@ interface Props {
   onTimeframeChange: (tf: Timeframe) => void;
   signals: Signal[];
   liveSituation?: LiveSituation;
+  assets: MarketPair[];
+  onPairChange: (pair: MarketPair) => void;
+  userTier?: SubscriptionTier;
 }
 
-const CandleChart: React.FC<Props> = ({ candles, symbol, timeframe, onTimeframeChange, signals, liveSituation }) => {
+const CandleChart: React.FC<Props> = ({ 
+  candles, 
+  symbol, 
+  timeframe, 
+  onTimeframeChange, 
+  signals, 
+  liveSituation,
+  assets,
+  onPairChange,
+  userTier = 'BASIC'
+}) => {
   const containerRef = useRef<HTMLDivElement>(null);
-  const [dimensions, setDimensions] = useState({ width: 800, height: 400 });
+  const [dimensions, setDimensions] = useState({ width: 0, height: 0 });
   const [cursor, setCursor] = useState<{x: number, y: number} | null>(null);
+  const [isAssetOpen, setIsAssetOpen] = useState(false);
+  const [searchTerm, setSearchTerm] = useState('');
 
   useEffect(() => {
-    const updateSize = () => {
-      if (containerRef.current) {
+    if (!containerRef.current) return;
+
+    const observer = new ResizeObserver((entries) => {
+      for (const entry of entries) {
         setDimensions({
-          width: containerRef.current.clientWidth,
-          height: containerRef.current.clientHeight,
+          width: entry.contentRect.width,
+          height: entry.contentRect.height,
         });
       }
-    };
-    window.addEventListener('resize', updateSize);
-    updateSize();
-    return () => window.removeEventListener('resize', updateSize);
+    });
+
+    observer.observe(containerRef.current);
+    return () => observer.disconnect();
   }, []);
 
   const { width, height } = dimensions;
-  const padding = { top: 60, bottom: 40, left: 10, right: 80 };
+  const padding = { top: 70, bottom: 40, left: 10, right: 80 }; // Increased top padding for header
 
   const { minPrice, maxPrice, priceRange } = useMemo(() => {
     if (candles.length === 0) return { minPrice: 0, maxPrice: 100, priceRange: 100 };
@@ -62,6 +79,8 @@ const CandleChart: React.FC<Props> = ({ candles, symbol, timeframe, onTimeframeC
   const lastCandle = candles[candles.length - 1];
   const patterns = useMemo(() => detectPatterns(candles), [candles]);
 
+  const filteredAssets = assets.filter(a => a.symbol.toLowerCase().includes(searchTerm.toLowerCase()));
+
   const handleMouseMove = (e: React.MouseEvent) => {
     if (containerRef.current) {
       const rect = containerRef.current.getBoundingClientRect();
@@ -75,6 +94,8 @@ const CandleChart: React.FC<Props> = ({ candles, symbol, timeframe, onTimeframeC
     setCursor(null);
   };
 
+  if (width === 0 || height === 0) return <div ref={containerRef} className="w-full h-full bg-[#0b0e11]" />;
+
   return (
     <div 
       ref={containerRef} 
@@ -82,41 +103,104 @@ const CandleChart: React.FC<Props> = ({ candles, symbol, timeframe, onTimeframeC
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      {/* HUD Market Situation Card */}
-      <div className="absolute top-4 left-4 z-30 pointer-events-none">
-        <div className="bg-[#161a1e]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl flex flex-col gap-3 min-w-[220px]">
-          <div className="flex justify-between items-center">
-             <div className="flex items-center gap-2">
-                <Activity size={16} className="text-blue-500 animate-pulse" />
-                <span className="text-[10px] font-black text-gray-500 uppercase tracking-widest">Institutional HUD</span>
-             </div>
-             <div className={`size-2 rounded-full animate-pulse ${liveSituation?.sentiment === 'BULLISH' ? 'bg-emerald-500' : liveSituation?.sentiment === 'BEARISH' ? 'bg-rose-500' : 'bg-blue-500'}`} />
-          </div>
+      {/* 🟢 TOP HEADER BAR (Pair Selector & Timeframes) */}
+      <div className="absolute top-4 left-4 right-4 z-40 flex flex-wrap items-center gap-4 pointer-events-none">
+        
+        {/* Pair Selector */}
+        <div className="relative pointer-events-auto">
+          <button 
+            onClick={() => setIsAssetOpen(!isAssetOpen)}
+            className="flex items-center gap-3 bg-[#161a1e] hover:bg-[#1e2329] border border-white/10 px-4 py-2 rounded-xl shadow-xl transition-all"
+          >
+            <div className="flex flex-col items-start">
+              <div className="flex items-center gap-2">
+                <span className="text-sm font-black text-white tracking-tighter">{symbol}</span>
+                <ChevronDown size={14} className={`text-gray-500 transition-transform ${isAssetOpen ? 'rotate-180' : ''}`} />
+              </div>
+              <span className={`text-[9px] font-bold ${lastCandle?.close >= candles[0]?.open ? 'text-emerald-500' : 'text-rose-500'}`}>
+                {lastCandle?.close.toFixed(symbol.includes('JPY') ? 3 : 5)}
+              </span>
+            </div>
+          </button>
 
-          <div className="flex items-baseline gap-2">
-            <h3 className="text-2xl font-black text-white tracking-tighter">
-              {lastCandle?.close.toFixed(symbol.includes('JPY') ? 3 : 5)}
-            </h3>
-          </div>
+          {isAssetOpen && (
+            <div className="absolute top-full left-0 mt-2 w-72 max-h-80 bg-[#161a1e] border border-white/10 rounded-2xl shadow-2xl overflow-hidden flex flex-col animate-in fade-in zoom-in-95 duration-200">
+              <div className="p-3 border-b border-white/5">
+                <div className="relative">
+                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-500" />
+                  <input 
+                    autoFocus
+                    placeholder="Search pair..." 
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full bg-[#0b0e11] border border-white/10 rounded-lg pl-9 pr-3 py-2 text-xs font-bold text-white outline-none focus:border-blue-500"
+                  />
+                </div>
+              </div>
+              <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
+                {filteredAssets.map(asset => {
+                  const isLocked = userTier === 'BASIC' && !BASIC_ACCESS_PAIRS.includes(asset.symbol);
+                  return (
+                    <button
+                      key={asset.symbol}
+                      disabled={isLocked}
+                      onClick={() => {
+                        if (!isLocked) {
+                          onPairChange(asset);
+                          setIsAssetOpen(false);
+                          setSearchTerm('');
+                        }
+                      }}
+                      className={`w-full flex items-center justify-between p-3 rounded-lg transition-all group ${symbol === asset.symbol ? 'bg-blue-600/10' : ''} ${isLocked ? 'opacity-50 cursor-not-allowed hover:bg-transparent' : 'hover:bg-white/5'}`}
+                    >
+                      <div className="text-left flex items-center gap-3">
+                         <div>
+                            <p className={`text-[10px] font-black ${symbol === asset.symbol ? 'text-blue-500' : 'text-gray-300 group-hover:text-white'}`}>{asset.symbol}</p>
+                            <p className="text-[8px] text-gray-600 font-bold uppercase">{asset.category}</p>
+                         </div>
+                         {isLocked && <LockKeyhole size={10} className="text-gray-500" />}
+                      </div>
+                      <div className="text-right">
+                         <p className="text-[10px] font-mono text-gray-400">{asset.price.toFixed(asset.symbol.includes('JPY') ? 3 : 5)}</p>
+                         <p className={`text-[8px] font-black ${asset.change >= 0 ? 'text-emerald-500' : 'text-rose-500'}`}>
+                           {asset.change >= 0 ? '+' : ''}{asset.change.toFixed(2)}%
+                         </p>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+              {userTier === 'BASIC' && (
+                <div className="p-3 bg-blue-600/10 border-t border-white/5 text-center">
+                  <p className="text-[8px] font-black text-blue-500 uppercase tracking-widest">Upgrade to Unlock 50+ Assets</p>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
 
-          <div className="space-y-1 pt-1 border-t border-white/5">
-             <div className="flex justify-between items-center">
-               <span className="text-[8px] font-black text-gray-600 uppercase">SMC Bias</span>
-               <div className={`text-[10px] font-black uppercase tracking-widest ${liveSituation?.sentiment === 'BULLISH' ? 'text-emerald-500' : liveSituation?.sentiment === 'BEARISH' ? 'text-rose-500' : 'text-blue-500'}`}>
-                  {liveSituation?.sentiment || 'ANALYZING...'}
-               </div>
-             </div>
-             <div className="flex justify-between items-center">
-               <span className="text-[8px] font-black text-gray-600 uppercase">Regime</span>
-               <div className="text-[9px] font-black uppercase text-blue-400">
-                  {liveSituation?.marketRegime || 'STABLE'}
-               </div>
-             </div>
-          </div>
-          
-          <p className="text-[9px] text-gray-400 font-medium leading-relaxed max-w-[200px] border-t border-white/5 pt-2 italic">
-             "{liveSituation?.shortSummary || 'Aligning structural nodes...'}"
-          </p>
+        {/* Timeframe Selector */}
+        <div className="flex bg-[#161a1e] p-1 rounded-2xl border border-white/10 shadow-xl overflow-x-auto no-scrollbar pointer-events-auto">
+          {TIMEFRAMES.map(tf => (
+            <button 
+              key={tf}
+              onClick={() => onTimeframeChange(tf as Timeframe)}
+              className={`px-3 py-1.5 rounded-xl text-[9px] font-black transition-all whitespace-nowrap ${timeframe === tf ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
+            >
+              {tf}
+            </button>
+          ))}
+        </div>
+
+        {/* Live HUD (Compact) */}
+        <div className="hidden sm:flex items-center gap-3 ml-auto bg-[#161a1e]/90 backdrop-blur border border-white/10 rounded-2xl px-4 py-2 pointer-events-none">
+            <Activity size={14} className="text-blue-500 animate-pulse" />
+            <div className="flex flex-col items-end">
+               <span className={`text-[10px] font-black uppercase tracking-widest ${liveSituation?.sentiment === 'BULLISH' ? 'text-emerald-500' : liveSituation?.sentiment === 'BEARISH' ? 'text-rose-500' : 'text-blue-500'}`}>
+                  {liveSituation?.sentiment || 'SCANNING'}
+               </span>
+               <span className="text-[8px] text-gray-500 font-bold uppercase">{liveSituation?.marketRegime || 'MARKET'}</span>
+            </div>
         </div>
       </div>
 
@@ -131,19 +215,6 @@ const CandleChart: React.FC<Props> = ({ candles, symbol, timeframe, onTimeframeC
           ))}
         </div>
       )}
-
-      {/* Timeframe Selector */}
-      <div className="absolute top-4 left-1/2 -translate-x-1/2 z-20 flex bg-[#161a1e] p-1.5 rounded-2xl border border-white/10 shadow-xl">
-        {TIMEFRAMES.map(tf => (
-          <button 
-            key={tf}
-            onClick={() => onTimeframeChange(tf as Timeframe)}
-            className={`px-4 py-2 rounded-xl text-[10px] font-black transition-all ${timeframe === tf ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-gray-300'}`}
-          >
-            {tf}
-          </button>
-        ))}
-      </div>
 
       <svg width={width} height={height} className="chart-svg">
         {/* Grid and Axis */}

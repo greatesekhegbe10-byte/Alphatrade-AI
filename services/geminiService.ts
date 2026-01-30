@@ -57,6 +57,18 @@ MARKET DATA (Last 50 Candles): ${JSON.stringify(candles.slice(-50))}
 DETECTED PATTERNS: ${JSON.stringify(patterns.slice(-5))}
 NEXT NEWS EVENT: ${JSON.stringify(news)}
 ACCOUNT CONTEXT: Balance: $${accountBalance}, Risk: ${riskPercent}%
+
+LOGIC:
+1. If Balance < $100:
+   - Assume "Cent Account" or "Binary Options".
+   - Minimum Lot Size = 0.01 (Micro) or calculate based on Cent units.
+   - Do NOT return lot size 0.
+2. If MarketType is BINARY:
+   - Ignore Stop Loss/Take Profit.
+   - Provide "Expiry" (e.g., 5 min, 15 min).
+3. If Standard Forex:
+   - Calculate exact SL/TP/Lot Size based on risk.
+
 OUTPUT: High-precision JSON with institutional confluence factors.`;
 
     const response = await ai.models.generateContent({
@@ -67,7 +79,7 @@ OUTPUT: High-precision JSON with institutional confluence factors.`;
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            type: { type: Type.STRING, enum: ['BUY', 'SELL', 'WAIT'] },
+            type: { type: Type.STRING, enum: ['BUY', 'SELL', 'WAIT', 'CALL', 'PUT'] },
             entry: { type: Type.NUMBER },
             tp: { type: Type.NUMBER },
             sl: { type: Type.NUMBER },

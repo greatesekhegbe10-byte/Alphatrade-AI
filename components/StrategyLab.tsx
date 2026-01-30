@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   FlaskConical, Play, BarChart3, TrendingUp, 
   Settings2, Activity, History, ShieldCheck, 
-  ArrowUpRight, AlertCircle, RefreshCw, Cpu
+  ArrowUpRight, AlertCircle, RefreshCw, Cpu, Database
 } from 'lucide-react';
 import { AI_STRATEGIES } from '../constants';
 import { strategyEngine } from '../services/strategyEngine';
@@ -17,6 +16,7 @@ interface Props {
 const StrategyLab: React.FC<Props> = ({ candles, symbol }) => {
   const [selectedStrategy, setSelectedStrategy] = useState<Strategy>(AI_STRATEGIES[3]);
   const [backtestResult, setBacktestResult] = useState<BacktestResult | null>(null);
+  const [runHistory, setRunHistory] = useState<{timestamp: number, strategyName: string, result: BacktestResult}[]>([]);
   const [isRunning, setIsRunning] = useState(false);
   const [risk, setRisk] = useState(1.0);
 
@@ -25,11 +25,12 @@ const StrategyLab: React.FC<Props> = ({ candles, symbol }) => {
     await new Promise(resolve => setTimeout(resolve, 800));
     const result = await strategyEngine.runBacktest(candles, selectedStrategy.id, risk);
     setBacktestResult(result);
+    setRunHistory(prev => [{ timestamp: Date.now(), strategyName: selectedStrategy.name, result }, ...prev]);
     setIsRunning(false);
   };
 
   return (
-    <div className="p-4 sm:p-8 space-y-6 sm:space-y-10 h-full overflow-y-auto bg-[#0b0e11] max-w-7xl mx-auto custom-scrollbar animate-in fade-in duration-700 pb-12">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-10 h-full overflow-y-auto bg-[#0b0e11] max-w-7xl mx-auto custom-scrollbar animate-in fade-in duration-700 pb-20">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-white/5 pb-8">
         <div className="space-y-3">
           <div className="flex items-center gap-3">
@@ -175,27 +176,38 @@ const StrategyLab: React.FC<Props> = ({ candles, symbol }) => {
              </div>
            )}
 
-           <div className="bg-[#161a1e] border border-white/5 p-8 rounded-[40px] shadow-2xl space-y-6">
-              <h3 className="text-lg font-black text-white uppercase tracking-tighter flex items-center gap-3">
-                <Activity size={20} className="text-emerald-500" /> Real-time Pattern Scanner
-              </h3>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                 {[
-                   { label: 'RSI Status', val: 'Oversold (24.2)', status: 'BUY_BIAS' },
-                   { label: 'Volatility Band', val: 'Compressing', status: 'NEUTRAL' },
-                   { label: 'SMC Structure', val: 'HH / HL Established', status: 'BULLISH' }
-                 ].map((scan, i) => (
-                   <div key={i} className="p-5 bg-[#0b0e11] rounded-3xl border border-white/5 flex flex-col justify-between">
-                      <span className="text-[8px] font-black text-gray-700 uppercase tracking-widest">{scan.label}</span>
-                      <p className="text-xs font-black text-white mt-1">{scan.val}</p>
-                      <div className="mt-4 pt-4 border-t border-white/5 flex justify-between items-center">
-                         <span className="text-[8px] font-black text-gray-500 uppercase">Detection</span>
-                         <span className="text-[9px] font-black text-emerald-500 uppercase">{scan.status}</span>
-                      </div>
-                   </div>
-                 ))}
-              </div>
-           </div>
+           {/* Backtest Summary Log */}
+           {runHistory.length > 0 && (
+             <div className="bg-[#161a1e] border border-white/5 p-8 rounded-[40px] shadow-2xl space-y-6">
+                <h3 className="text-lg font-black text-white uppercase tracking-tighter flex items-center gap-3">
+                  <Database size={20} className="text-blue-500" /> Simulation Log
+                </h3>
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead>
+                      <tr className="border-b border-white/5 text-[9px] font-black text-gray-500 uppercase tracking-widest">
+                        <th className="pb-3 pl-2">Time</th>
+                        <th className="pb-3">Strategy</th>
+                        <th className="pb-3 text-right">Win Rate</th>
+                        <th className="pb-3 text-right">Net Profit</th>
+                        <th className="pb-3 text-right">DD</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-white/5">
+                      {runHistory.map((run, i) => (
+                        <tr key={i} className="group hover:bg-white/5">
+                          <td className="py-3 pl-2 text-[10px] font-bold text-gray-400">{new Date(run.timestamp).toLocaleTimeString()}</td>
+                          <td className="py-3 text-[10px] font-bold text-white">{run.strategyName}</td>
+                          <td className="py-3 text-right text-[10px] font-bold text-blue-400">{run.result.winRate.toFixed(1)}%</td>
+                          <td className={`py-3 text-right text-[10px] font-bold ${run.result.netProfit >= 0 ? 'text-emerald-500' : 'text-red-500'}`}>${run.result.netProfit.toFixed(0)}</td>
+                          <td className="py-3 text-right text-[10px] font-bold text-red-400">{run.result.maxDrawdown}%</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+             </div>
+           )}
         </section>
       </div>
     </div>

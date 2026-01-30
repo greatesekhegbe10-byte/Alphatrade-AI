@@ -3,7 +3,8 @@ import {
   Menu, Activity, LayoutDashboard, Settings, LogOut, Zap, 
   ShieldCheck, Database, Book, Layers, TrendingUp,
   Brain, Lock, AlertCircle, Loader2,
-  FlaskConical, LockKeyhole, Calculator, Calendar, MessageSquare, CheckCircle2
+  FlaskConical, LockKeyhole, Calculator, Calendar, MessageSquare, CheckCircle2,
+  BarChart2, X
 } from 'lucide-react';
 import { ALL_ASSETS, AI_STRATEGIES, TIMEFRAMES } from './constants';
 import { Candle, Signal, MarketType, MarketPair, BrokerAccount, UserSettings, User, SystemState, Timeframe, JournalEntry, LiveSituation } from './types';
@@ -41,7 +42,12 @@ const App: React.FC = () => {
 
   const [isAdminPortal, setIsAdminPortal] = useState(false);
   const [activeView, setActiveView] = useState<ViewType>('TERMINAL');
+  
+  // Responsive States
   const [isSidebarOpen, setIsSidebarOpen] = useState(window.innerWidth >= 1024);
+  const [mobileTab, setMobileTab] = useState<'CHART' | 'SIGNALS'>('CHART');
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+
   const [showPaywall, setShowPaywall] = useState(false);
 
   const [systemState, setSystemState] = useState<SystemState>({
@@ -114,37 +120,26 @@ const App: React.FC = () => {
   const canAccessAI = isExpert;
 
   // 🌍 GLOBAL PAYMENT CALLBACK LISTENER
-  // Handles standard Flutterwave & Paystack redirect parameters
   useEffect(() => {
     const handlePaymentCallback = async () => {
       const params = new URLSearchParams(window.location.search);
-      
-      // 1. FLUTTERWAVE PARAMS: ?status=successful&tx_ref=...&transaction_id=...
       const flwStatus = params.get('status');
       const flwRef = params.get('tx_ref');
-
-      // 2. PAYSTACK PARAMS: ?trxref=...&reference=...
       const pstkRef = params.get('trxref') || params.get('reference');
 
       const txRef = flwRef || pstkRef;
-      const isSuccess = flwStatus === 'successful' || pstkRef; // Paystack presence implies return from gateway
+      const isSuccess = flwStatus === 'successful' || pstkRef;
 
       if (isSuccess && txRef) {
         setPaymentStatus('VERIFYING');
         setStartupStep('Verifying Transaction Blockchain...');
-        
-        // Determine Gateway from Reference Prefix or Params
         const gateway = txRef.includes('FLW') ? 'FLUTTERWAVE' : 'PAYSTACK';
-        
         const success = await paymentService.verify(txRef, gateway);
         
         if (success) {
           setPaymentStatus('SUCCESS');
-          // Reload user session to get updated tier
           const activeUser = await authService.verifySession();
           if (activeUser) setUser(activeUser);
-          
-          // Clean URL without reloading
           window.history.replaceState({}, '', window.location.pathname);
           setTimeout(() => setPaymentStatus('IDLE'), 3500);
         } else {
@@ -153,7 +148,6 @@ const App: React.FC = () => {
         }
       }
     };
-
     handlePaymentCallback();
   }, []);
 
@@ -230,7 +224,8 @@ const App: React.FC = () => {
 
   const handleGenerateSignal = async () => {
     if (!user) return;
-    if (user.tier === 'BASIC' && signals.length >= 5) { setShowPaywall(true); return; }
+    // ALLOW ALL TIERS TO GENERATE SIGNALS (Removed Paywall Restriction)
+    // if (user.tier === 'BASIC' && signals.length >= 5) { setShowPaywall(true); return; }
     
     setIsAnalyzing(true);
     if (user.tier === 'BASIC') await new Promise(r => setTimeout(r, 4500));
@@ -261,7 +256,8 @@ const App: React.FC = () => {
     if (view === 'LAB' && !isProPlus) { setShowPaywall(true); return; }
     if (view === 'ANALYSIS' && !canAccessAI) { setShowPaywall(true); return; }
     setActiveView(view);
-    if (window.innerWidth < 1024) setIsSidebarOpen(false);
+    setShowMobileMenu(false);
+    setMobileTab('CHART');
   };
 
   if (isAuthLoading || paymentStatus === 'VERIFYING') {
@@ -300,7 +296,7 @@ const App: React.FC = () => {
   if (!user) {
     return (
       <div className="min-h-screen bg-[#0b0e11] flex items-center justify-center p-6 relative">
-        <div className="w-full max-w-lg bg-[#161a1e] border border-white/5 p-12 rounded-[40px] shadow-2xl space-y-10 animate-in fade-in zoom-in-95 duration-700">
+        <div className="w-full max-w-lg bg-[#161a1e] border border-white/5 p-8 sm:p-12 rounded-[40px] shadow-2xl space-y-10 animate-in fade-in zoom-in-95 duration-700">
           <div className="text-center space-y-3">
              <ShieldCheck className="text-blue-500 size-16 mx-auto mb-4" />
              <h1 className="text-4xl font-black text-white uppercase leading-none tracking-tighter">Alpha<span className="text-blue-500">Trade</span> AI</h1>
@@ -341,13 +337,18 @@ const App: React.FC = () => {
   ];
 
   return (
-    <div className="flex h-screen w-full bg-[#0b0e11] text-[#eaecef] overflow-hidden select-none">
+    <div className="flex flex-col lg:flex-row h-screen w-full bg-[#0b0e11] text-[#eaecef] overflow-hidden select-none font-sans">
       {showPaywall && <SubscriptionPortal user={user} onSuccess={(tier) => { setUser({...user, tier}); setShowPaywall(false); }} onCancel={() => setShowPaywall(false)} />}
       
-      <aside className={`fixed lg:static inset-y-0 left-0 z-[50] ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full lg:translate-x-0 w-72 lg:w-20'} shrink-0 bg-[#161a1e] border-r border-white/5 transition-all duration-300 flex flex-col`}>
-        <div className="p-8 h-20 border-b border-white/5 flex items-center gap-4">
-          <ShieldCheck className="text-blue-500 shrink-0" size={28} />
-          {isSidebarOpen && <h1 className="font-black text-2xl tracking-tighter text-white uppercase">AlphaTrade</h1>}
+      {/* 📱 MOBILE SIDEBAR (Drawer) */}
+      <div className={`fixed inset-0 z-[60] bg-black/80 backdrop-blur-sm lg:hidden transition-opacity ${showMobileMenu ? 'opacity-100' : 'opacity-0 pointer-events-none'}`} onClick={() => setShowMobileMenu(false)}></div>
+      <aside className={`fixed inset-y-0 left-0 z-[70] w-72 bg-[#161a1e] border-r border-white/5 transition-transform duration-300 transform lg:translate-x-0 lg:static lg:z-auto lg:shrink-0 flex flex-col ${showMobileMenu || isSidebarOpen ? 'translate-x-0' : '-translate-x-full lg:w-20'}`}>
+        <div className="p-8 h-20 border-b border-white/5 flex items-center justify-between lg:justify-start gap-4">
+          <div className="flex items-center gap-3">
+             <ShieldCheck className="text-blue-500 shrink-0" size={28} />
+             {(isSidebarOpen || window.innerWidth < 1024) && <h1 className="font-black text-2xl tracking-tighter text-white uppercase">AlphaTrade</h1>}
+          </div>
+          <button className="lg:hidden text-gray-500" onClick={() => setShowMobileMenu(false)}><X size={24}/></button>
         </div>
         <nav className="p-5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1">
           {sidebarItems.map(view => (
@@ -357,7 +358,7 @@ const App: React.FC = () => {
               className={`w-full flex items-center gap-4 p-4 rounded-2xl transition-all relative ${activeView === view.id ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-500 hover:bg-white/5'}`}
             >
               <view.icon size={22} /> 
-              {isSidebarOpen && <span className="text-[11px] font-black uppercase tracking-widest">{view.label}</span>}
+              {(isSidebarOpen || window.innerWidth < 1024) && <span className="text-[11px] font-black uppercase tracking-widest">{view.label}</span>}
               {view.locked && <LockKeyhole size={12} className="absolute right-4 text-gray-700" />}
             </button>
           ))}
@@ -369,21 +370,22 @@ const App: React.FC = () => {
               <p className="text-[9px] font-bold text-blue-500 uppercase">{user.tier}</p>
            </button>
            <button onClick={handleLogout} className="w-full flex items-center gap-4 p-4 text-gray-700 hover:text-red-500 transition-all font-black uppercase text-[11px]">
-              <LogOut size={22} /> {isSidebarOpen && "Shutdown"}
+              <LogOut size={22} /> {(isSidebarOpen || window.innerWidth < 1024) && "Shutdown"}
            </button>
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 z-10">
-        <header className="h-20 bg-[#161a1e] border-b border-white/5 flex items-center justify-between px-10 shadow-2xl">
-           <div className="flex items-center gap-8">
-              <button onClick={() => setIsSidebarOpen(!isSidebarOpen)} className="p-2.5 text-gray-500 hover:text-white bg-[#0b0e11] rounded-xl border border-white/5"><Menu size={22}/></button>
-              <div className="flex bg-[#0b0e11] p-1.5 rounded-2xl border border-white/5">
+      <div className="flex-1 flex flex-col min-w-0 z-10 relative">
+        {/* 📱 MOBILE HEADER */}
+        <header className="h-16 lg:h-20 bg-[#161a1e] border-b border-white/5 flex items-center justify-between px-4 lg:px-10 shadow-2xl shrink-0">
+           <div className="flex items-center gap-4 lg:gap-8 overflow-x-auto no-scrollbar">
+              <button onClick={() => { setIsSidebarOpen(!isSidebarOpen); }} className="hidden lg:block p-2.5 text-gray-500 hover:text-white bg-[#0b0e11] rounded-xl border border-white/5"><Menu size={22}/></button>
+              <div className="flex bg-[#0b0e11] p-1 rounded-2xl border border-white/5 shrink-0">
                  {['FOREX', 'BINARY', 'INDICES', 'COMMODITIES'].map(cat => (
                    <button 
                     key={cat} 
                     onClick={() => setMarketType(cat as MarketType)} 
-                    className={`relative px-6 py-2.5 rounded-xl text-[11px] font-black tracking-widest transition-all ${marketType === cat ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-700 hover:text-gray-300'}`}
+                    className={`relative px-3 lg:px-6 py-2 rounded-xl text-[9px] lg:text-[11px] font-black tracking-widest transition-all ${marketType === cat ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-700 hover:text-gray-300'}`}
                    >
                     {cat}
                     {cat === 'BINARY' && !isExpert && <LockKeyhole size={10} className="absolute top-1 right-2 text-red-500/50" />}
@@ -395,16 +397,28 @@ const App: React.FC = () => {
            <button 
              onClick={handleGenerateSignal} 
              disabled={isAnalyzing} 
-             className="px-12 py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-[0.3em] flex items-center gap-3 shadow-2xl transition-all"
+             className="px-4 lg:px-12 py-2 lg:py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl lg:rounded-2xl font-black text-[10px] lg:text-xs uppercase tracking-[0.2em] flex items-center gap-2 lg:gap-3 shadow-2xl transition-all whitespace-nowrap"
            >
-              {isAnalyzing ? <Loader2 size={18} className="animate-spin" /> : <Zap size={18} />}
-              {isAnalyzing ? (user.tier === 'BASIC' ? "Institutional Scanning..." : "Analyzing...") : "Run Analysis"}
+              {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
+              <span className="hidden sm:inline">{isAnalyzing ? (user.tier === 'BASIC' ? "Scanning..." : "Analyzing...") : "Run Analysis"}</span>
            </button>
         </header>
 
-        <main className="flex-1 flex overflow-hidden">
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-             {activeView === 'TERMINAL' && <CandleChart candles={candles} symbol={selectedPair.symbol} timeframe={timeframe} onTimeframeChange={setTimeframe} signals={signals} liveSituation={liveSituation} />}
+        <main className="flex-1 flex overflow-hidden relative">
+          <div className={`flex-1 overflow-y-auto custom-scrollbar relative ${activeView === 'TERMINAL' && 'bg-[#0b0e11]'}`}>
+             {activeView === 'TERMINAL' && (
+               <CandleChart 
+                  candles={candles} 
+                  symbol={selectedPair.symbol} 
+                  timeframe={timeframe} 
+                  onTimeframeChange={setTimeframe} 
+                  signals={signals} 
+                  liveSituation={liveSituation}
+                  assets={assets.filter(a => a.category === marketType)}
+                  onPairChange={setSelectedPair}
+                  userTier={user?.tier || 'BASIC'}
+                />
+             )}
              {activeView === 'SETTINGS' && <SettingsPanel settings={settings} setSettings={setSettings} canAccessAI={canAccessAI} />}
              {activeView === 'JOURNAL' && <JournalPanel journal={journal} setJournal={setJournal} />}
              {activeView === 'HEATMAP' && (
@@ -424,8 +438,9 @@ const App: React.FC = () => {
              {activeView === 'CHAT' && <ChatPanel />}
           </div>
 
+          {/* 💻 DESKTOP RIGHT PANEL (Signals) */}
           {activeView === 'TERMINAL' && (
-            <div className="w-[420px] shrink-0 border-l border-white/5 bg-[#161a1e] flex flex-col">
+            <div className="hidden lg:flex w-[420px] shrink-0 border-l border-white/5 bg-[#161a1e] flex-col z-20">
                <SignalPanel 
                  signals={signals} 
                  activeType={marketType} 
@@ -448,7 +463,46 @@ const App: React.FC = () => {
                />
             </div>
           )}
+
+          {/* 📱 MOBILE SIGNAL PANEL (Overlay) */}
+          {activeView === 'TERMINAL' && mobileTab === 'SIGNALS' && (
+             <div className="lg:hidden absolute inset-0 z-30 bg-[#161a1e] flex flex-col animate-in slide-in-from-right">
+                <div className="p-4 border-b border-white/5 flex items-center justify-between bg-[#161a1e]">
+                   <h3 className="font-black uppercase text-white flex items-center gap-2"><BarChart2 className="text-blue-500" size={18}/> Active Signals</h3>
+                   <button onClick={() => setMobileTab('CHART')} className="p-2 bg-white/5 rounded-full text-gray-400"><X size={18}/></button>
+                </div>
+                <div className="flex-1 overflow-hidden">
+                   <SignalPanel 
+                    signals={signals} 
+                    activeType={marketType} 
+                    broker={broker} 
+                    settings={settings}
+                  />
+                </div>
+             </div>
+          )}
         </main>
+
+        {/* 📱 MOBILE BOTTOM NAVIGATION */}
+        <nav className="lg:hidden h-16 bg-[#161a1e] border-t border-white/5 flex items-center justify-around shrink-0 z-50 px-2 pb-safe">
+           <button onClick={() => setShowMobileMenu(true)} className="flex flex-col items-center gap-1 p-2 text-gray-500">
+              <Menu size={20} />
+              <span className="text-[9px] font-black uppercase">Menu</span>
+           </button>
+           <button onClick={() => setMobileTab('CHART')} className={`flex flex-col items-center gap-1 p-2 ${mobileTab === 'CHART' ? 'text-blue-500' : 'text-gray-500'}`}>
+              <LayoutDashboard size={20} />
+              <span className="text-[9px] font-black uppercase">Chart</span>
+           </button>
+           <button onClick={() => setMobileTab('SIGNALS')} className={`flex flex-col items-center gap-1 p-2 ${mobileTab === 'SIGNALS' ? 'text-blue-500' : 'text-gray-500'}`}>
+              <Activity size={20} />
+              <span className="text-[9px] font-black uppercase">Signals</span>
+              {signals.length > 0 && <span className="absolute top-3 ml-4 size-2 bg-red-500 rounded-full animate-pulse" />}
+           </button>
+           <button onClick={() => setActiveView('BRIDGE')} className={`flex flex-col items-center gap-1 p-2 ${activeView === 'BRIDGE' ? 'text-blue-500' : 'text-gray-500'}`}>
+              <Database size={20} />
+              <span className="text-[9px] font-black uppercase">Broker</span>
+           </button>
+        </nav>
       </div>
     </div>
   );

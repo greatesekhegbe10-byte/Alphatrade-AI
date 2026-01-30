@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { MarketPair, SubscriptionTier } from '../types';
 import { Layers, TrendingUp, TrendingDown, Zap, BarChart3, Info, Activity, ArrowRightLeft, Target, Star, LockKeyhole } from 'lucide-react';
+import { BASIC_ACCESS_PAIRS } from '../constants';
 
 interface Props {
   pairs: MarketPair[];
@@ -70,7 +71,7 @@ const HeatmapPanel: React.FC<Props> = ({ pairs, onSelectPair, favorites, onToggl
                     const isFav = favorites.includes(pair.symbol);
                     
                     // Tier Locking Logic: Basic sees only Major Pairs. Pro/Inst sees all.
-                    const isLocked = userTier === 'BASIC' && !['EUR/USD', 'GBP/USD', 'USD/JPY', 'USD/CAD', 'AUD/USD'].includes(pair.symbol);
+                    const isLocked = userTier === 'BASIC' && !BASIC_ACCESS_PAIRS.includes(pair.symbol);
 
                     // Simple bias logic based on change and random institutional confluence
                     const bias = pair.change > 0.15 ? 'STRONG BUY' : pair.change > 0 ? 'BUY' : pair.change < -0.15 ? 'STRONG SELL' : pair.change < 0 ? 'SELL' : 'NEUTRAL';

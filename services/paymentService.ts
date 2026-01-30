@@ -51,9 +51,11 @@ const recordTransaction = (tx: Transaction) => {
 const generateBridgeUrl = (gateway: PaymentGateway, payload: any): string => {
   let scriptSrc = '';
   let initScript = '';
+  let preconnectUrl = '';
 
   if (gateway === 'FLUTTERWAVE') {
     scriptSrc = 'https://checkout.flutterwave.com/v3.js';
+    preconnectUrl = 'https://checkout.flutterwave.com';
     initScript = `
       FlutterwaveCheckout({
         public_key: "${VAULT.FLUTTERWAVE.PUBLIC}",
@@ -66,13 +68,13 @@ const generateBridgeUrl = (gateway: PaymentGateway, payload: any): string => {
         customizations: ${JSON.stringify(payload.customizations)},
         meta: ${JSON.stringify(payload.meta)},
         onclose: function() {
-          // If user closes modal, return to app
           window.location.href = "${payload.redirect_url}";
         }
       });
     `;
   } else if (gateway === 'PAYSTACK') {
     scriptSrc = 'https://js.paystack.co/v1/inline.js';
+    preconnectUrl = 'https://js.paystack.co';
     initScript = `
       var handler = PaystackPop.setup({
         key: "${VAULT.PAYSTACK.PUBLIC}",
@@ -98,23 +100,29 @@ const generateBridgeUrl = (gateway: PaymentGateway, payload: any): string => {
     <head>
       <title>Secure Payment Bridge</title>
       <meta name="viewport" content="width=device-width, initial-scale=1.0">
-      <script src="${scriptSrc}"></script>
+      <link rel="preconnect" href="${preconnectUrl}">
+      <link rel="dns-prefetch" href="${preconnectUrl}">
       <style>
-        body { background-color: #0b0e11; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; }
-        .loader { border: 4px solid #1e2329; border-top: 4px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 1s linear infinite; margin-bottom: 20px; }
+        body { background-color: #0b0e11; color: white; display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; font-family: sans-serif; margin: 0; }
+        .loader { border: 3px solid #1e2329; border-top: 3px solid #3b82f6; border-radius: 50%; width: 40px; height: 40px; animation: spin 0.8s linear infinite; margin-bottom: 20px; }
         @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+        p { font-size: 12px; letter-spacing: 0.1em; text-transform: uppercase; color: #6b7280; font-weight: bold; }
       </style>
+      <script>
+        function initPayment() {
+           try {
+             ${initScript}
+           } catch(e) {
+             document.body.innerHTML = '<p style="color:red">Handshake Failed. Retry.</p>';
+             console.error(e);
+           }
+        }
+      </script>
+      <script src="${scriptSrc}" onload="initPayment()" onerror="document.body.innerHTML='<p style=color:red>Connection Failed</p>'"></script>
     </head>
     <body>
       <div class="loader"></div>
-      <p>Establishing Secure Link...</p>
-      <script>
-        window.onload = function() {
-          setTimeout(function() {
-            ${initScript}
-          }, 1000);
-        };
-      </script>
+      <p>Securing Node...</p>
     </body>
     </html>
   `;
@@ -230,8 +238,8 @@ export const paymentService = {
 
     console.log(`[VERIFY] Validating Blockchain Hash for ${reference}...`);
     
-    // Simulate Network Latency
-    await new Promise(r => setTimeout(r, 2000));
+    // Simulate Network Latency (Optimized for speed)
+    await new Promise(r => setTimeout(r, 800));
 
     // In a real backend, we would fetch(`https://api.flutterwave.com/v3/transactions/${id}/verify`) here.
     // For this architecture, we trust the callback reference exists in our pending ledger.
