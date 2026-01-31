@@ -22,7 +22,7 @@ const FX_RATE = 1650;
 const SubscriptionPortal: React.FC<Props> = ({ user, onSuccess, onCancel }) => {
   const [selectedTier, setSelectedTier] = useState<SubscriptionTier>('PRO');
   const [gateway, setGateway] = useState<PaymentGateway>('FLUTTERWAVE');
-  const [stage, setStage] = useState<'IDLE' | 'INITIATING' | 'ERROR'>('IDLE');
+  const [stage, setStage] = useState<'IDLE' | 'INITIATING' | 'AWAITING_COMPLETION' | 'ERROR'>('IDLE');
   const [errorMessage, setErrorMessage] = useState('');
 
   const activePlan = PLANS.find(p => p.id === selectedTier)!;
@@ -31,19 +31,22 @@ const SubscriptionPortal: React.FC<Props> = ({ user, onSuccess, onCancel }) => {
     setStage('INITIATING');
     setErrorMessage('');
     
-    // SECURE PROXY CALL
     const response = await paymentService.initialize(
       user, 
       gateway, 
       selectedTier, 
-      activePlan.price
+      activePlan.price,
+      () => {
+        // Callback when modal closes
+        setStage('IDLE');
+      }
     );
     
-    if (response.success && response.checkout_url) {
-      // Redirect Browser to Official Hosted Page (or Simulation)
-      window.location.assign(response.checkout_url);
+    if (response.success) {
+      // Payment modal should be open now.
+      setStage('AWAITING_COMPLETION');
     } else {
-      setErrorMessage(response.error || "Gateway Handshake Failed. Verify Node Integrity.");
+      setErrorMessage(response.error || "Gateway Handshake Failed. Check Connection.");
       setStage('ERROR');
     }
   };
@@ -99,21 +102,26 @@ const SubscriptionPortal: React.FC<Props> = ({ user, onSuccess, onCancel }) => {
         <div className="w-full md:w-[420px] bg-[#0b0e11] p-10 flex flex-col justify-between relative">
           
           {stage !== 'IDLE' && (
-            <div className="absolute inset-0 z-[60] bg-[#0b0e11] flex flex-col items-center justify-center p-12 text-center space-y-8 animate-in fade-in zoom-in-95 duration-300">
-               {stage === 'INITIATING' ? (
+            <div className="absolute inset-0 z-[60] bg-[#0b0e11]/95 backdrop-blur-sm flex flex-col items-center justify-center p-12 text-center space-y-8 animate-in fade-in zoom-in-95 duration-300">
+               {(stage === 'INITIATING' || stage === 'AWAITING_COMPLETION') ? (
                  <>
                    <Loader2 className="animate-spin text-blue-500" size={64} />
                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Establishing Link</h3>
-                   <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em]">Negotiating Official {gateway} Node...</p>
+                   <p className="text-[10px] text-gray-500 font-black uppercase tracking-[0.2em]">
+                     {stage === 'INITIATING' ? `Negotiating ${gateway} Node...` : 'Complete Payment in Popup...'}
+                   </p>
+                   {stage === 'AWAITING_COMPLETION' && (
+                     <button onClick={() => setStage('IDLE')} className="text-[9px] text-red-500 hover:text-red-400 font-bold uppercase border-b border-red-500/50 pb-0.5">Cancel & Retry</button>
+                   )}
                  </>
                ) : (
                  <>
                    <AlertCircle className="text-red-500" size={64} />
                    <h3 className="text-xl font-black text-white uppercase tracking-tighter">Handshake Error</h3>
-                   <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl">
+                   <div className="p-4 bg-red-500/5 border border-red-500/20 rounded-2xl w-full">
                       <p className="text-[10px] text-red-400 font-bold leading-relaxed italic">{errorMessage}</p>
                    </div>
-                   <button onClick={() => setStage('IDLE')} className="w-full py-4 bg-white/5 border border-white/10 text-[10px] font-black uppercase rounded-2xl flex items-center justify-center gap-3">
+                   <button onClick={() => setStage('IDLE')} className="w-full py-4 bg-white/5 border border-white/10 text-[10px] font-black uppercase rounded-2xl flex items-center justify-center gap-3 hover:bg-white/10 transition-all">
                       <RotateCcw size={16}/> Retry Sync
                    </button>
                  </>
