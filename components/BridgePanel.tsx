@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { 
   Link, Terminal, Monitor, Key, RefreshCw, 
@@ -53,7 +52,7 @@ const BridgePanel: React.FC<Props> = ({ broker, setBroker }) => {
   };
 
   return (
-    <div className="p-4 sm:p-8 space-y-6 sm:space-y-10 h-full overflow-y-auto bg-[#0b0e11] max-w-7xl mx-auto custom-scrollbar animate-in slide-in-from-right duration-500 pb-12">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-10 h-full overflow-y-auto bg-[#0b0e11] max-w-7xl mx-auto custom-scrollbar animate-in slide-in-from-right duration-500 pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-white/5 pb-6 sm:pb-8">
         <div className="space-y-3">
           <div className="flex items-center gap-3">
@@ -74,16 +73,16 @@ const BridgePanel: React.FC<Props> = ({ broker, setBroker }) => {
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 sm:gap-10">
         <div className="lg:col-span-8 space-y-8">
-          <div className="flex bg-[#161a1e] p-1.5 rounded-2xl border border-white/5 w-fit shadow-2xl">
+          <div className="flex bg-[#161a1e] p-1.5 rounded-2xl border border-white/5 w-full sm:w-fit shadow-2xl overflow-x-auto">
             <button 
               onClick={() => {setActiveTab('MT5'); setSelectedBroker(TOP_MT5_BROKERS[0]);}} 
-              className={`px-6 sm:px-12 py-3 rounded-xl text-[10px] font-black tracking-widest transition-all flex items-center gap-3 ${activeTab === 'MT5' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
+              className={`flex-1 sm:flex-none px-6 sm:px-12 py-3 rounded-xl text-[10px] font-black tracking-widest transition-all flex items-center justify-center gap-3 whitespace-nowrap ${activeTab === 'MT5' ? 'bg-blue-600 text-white shadow-lg' : 'text-gray-500 hover:text-white'}`}
             >
               <Database size={16}/> MT4/MT5 BRIDGE
             </button>
             <button 
               onClick={() => {setActiveTab('BINARY'); setSelectedBroker(TOP_BINARY_BROKERS[0]);}} 
-              className={`px-6 sm:px-12 py-3 rounded-xl text-[10px] font-black tracking-widest transition-all flex items-center gap-3 ${activeTab === 'BINARY' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}
+              className={`flex-1 sm:flex-none px-6 sm:px-12 py-3 rounded-xl text-[10px] font-black tracking-widest transition-all flex items-center justify-center gap-3 whitespace-nowrap ${activeTab === 'BINARY' ? 'bg-purple-600 text-white shadow-lg' : 'text-gray-600 hover:text-white'}`}
             >
               <Smartphone size={16}/> BINARY OPTION
             </button>

@@ -50,7 +50,15 @@ const CandleChart: React.FC<Props> = ({
   }, []);
 
   const { width, height } = dimensions;
-  const padding = { top: 70, bottom: 40, left: 10, right: 80 }; // Increased top padding for header
+  
+  // Responsive Padding Calculation
+  const isMobile = width < 640;
+  const padding = { 
+    top: isMobile ? 65 : 70, 
+    bottom: 40, 
+    left: 10, 
+    right: isMobile ? 50 : 80 
+  };
 
   const { minPrice, maxPrice, priceRange } = useMemo(() => {
     if (candles.length === 0) return { minPrice: 0, maxPrice: 100, priceRange: 100 };
@@ -103,11 +111,11 @@ const CandleChart: React.FC<Props> = ({
       onMouseMove={handleMouseMove}
       onMouseLeave={handleMouseLeave}
     >
-      {/* 🟢 TOP HEADER BAR (Pair Selector & Timeframes) */}
-      <div className="absolute top-4 left-4 right-4 z-40 flex flex-wrap items-center gap-4 pointer-events-none">
+      {/* 🟢 TOP HEADER BAR (Responsive: Scrollable on Mobile) */}
+      <div className="absolute top-4 left-4 right-4 z-40 flex items-center gap-3 pointer-events-none overflow-x-auto no-scrollbar pr-4">
         
         {/* Pair Selector */}
-        <div className="relative pointer-events-auto">
+        <div className="relative pointer-events-auto shrink-0">
           <button 
             onClick={() => setIsAssetOpen(!isAssetOpen)}
             className="flex items-center gap-3 bg-[#161a1e] hover:bg-[#1e2329] border border-white/10 px-4 py-2 rounded-xl shadow-xl transition-all"
@@ -180,7 +188,7 @@ const CandleChart: React.FC<Props> = ({
         </div>
 
         {/* Timeframe Selector */}
-        <div className="flex bg-[#161a1e] p-1 rounded-2xl border border-white/10 shadow-xl overflow-x-auto no-scrollbar pointer-events-auto">
+        <div className="flex bg-[#161a1e] p-1 rounded-2xl border border-white/10 shadow-xl overflow-x-auto no-scrollbar pointer-events-auto shrink-0">
           {TIMEFRAMES.map(tf => (
             <button 
               key={tf}
@@ -192,8 +200,8 @@ const CandleChart: React.FC<Props> = ({
           ))}
         </div>
 
-        {/* Live HUD (Compact) */}
-        <div className="hidden sm:flex items-center gap-3 ml-auto bg-[#161a1e]/90 backdrop-blur border border-white/10 rounded-2xl px-4 py-2 pointer-events-none">
+        {/* Live HUD (Compact - Hidden on Mobile to save space) */}
+        <div className="hidden sm:flex items-center gap-3 ml-auto bg-[#161a1e]/90 backdrop-blur border border-white/10 rounded-2xl px-4 py-2 pointer-events-none shrink-0">
             <Activity size={14} className="text-blue-500 animate-pulse" />
             <div className="flex flex-col items-end">
                <span className={`text-[10px] font-black uppercase tracking-widest ${liveSituation?.sentiment === 'BULLISH' ? 'text-emerald-500' : liveSituation?.sentiment === 'BEARISH' ? 'text-rose-500' : 'text-blue-500'}`}>
@@ -224,7 +232,7 @@ const CandleChart: React.FC<Props> = ({
           return (
             <React.Fragment key={i}>
               <line x1={0} y1={y} x2={width - padding.right} y2={y} stroke="rgba(255,255,255,0.03)" strokeWidth="1" />
-              <text x={width - 75} y={y + 4} fill="#474d57" fontSize="9" className="mono">{price.toFixed(symbol.includes('JPY') ? 3 : 5)}</text>
+              <text x={width - (isMobile ? 45 : 75)} y={y + 4} fill="#474d57" fontSize={isMobile ? "8" : "9"} className="mono">{price.toFixed(symbol.includes('JPY') ? 3 : 5)}</text>
             </React.Fragment>
           );
         })}
@@ -267,7 +275,7 @@ const CandleChart: React.FC<Props> = ({
             />
             <rect 
               x={width - padding.right} y={getY(lastCandle.close) - 10} 
-              width={80} height={20} fill="#2563eb" rx="4"
+              width={isMobile ? 50 : 80} height={20} fill="#2563eb" rx="4"
             />
             <text 
               x={width - padding.right + 5} y={getY(lastCandle.close) + 4} 
@@ -297,7 +305,7 @@ const CandleChart: React.FC<Props> = ({
              {/* Price Label */}
              <rect 
                x={width - padding.right} y={cursor.y - 10} 
-               width={80} height={20} fill="#1e2329" rx="4" stroke="rgba(255,255,255,0.2)"
+               width={isMobile ? 50 : 80} height={20} fill="#1e2329" rx="4" stroke="rgba(255,255,255,0.2)"
              />
              <text 
                x={width - padding.right + 5} y={cursor.y + 4} 

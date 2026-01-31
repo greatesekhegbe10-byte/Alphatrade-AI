@@ -224,8 +224,6 @@ const App: React.FC = () => {
 
   const handleGenerateSignal = async () => {
     if (!user) return;
-    // ALLOW ALL TIERS TO GENERATE SIGNALS (Removed Paywall Restriction)
-    // if (user.tier === 'BASIC' && signals.length >= 5) { setShowPaywall(true); return; }
     
     setIsAnalyzing(true);
     if (user.tier === 'BASIC') await new Promise(r => setTimeout(r, 4500));
@@ -377,15 +375,15 @@ const App: React.FC = () => {
 
       <div className="flex-1 flex flex-col min-w-0 z-10 relative">
         {/* 📱 MOBILE HEADER */}
-        <header className="h-16 lg:h-20 bg-[#161a1e] border-b border-white/5 flex items-center justify-between px-4 lg:px-10 shadow-2xl shrink-0">
-           <div className="flex items-center gap-4 lg:gap-8 overflow-x-auto no-scrollbar">
+        <header className="h-16 lg:h-20 bg-[#161a1e] border-b border-white/5 flex items-center justify-between px-4 lg:px-10 shadow-2xl shrink-0 gap-4">
+           <div className="flex items-center gap-3 lg:gap-8 overflow-hidden">
               <button onClick={() => { setIsSidebarOpen(!isSidebarOpen); }} className="hidden lg:block p-2.5 text-gray-500 hover:text-white bg-[#0b0e11] rounded-xl border border-white/5"><Menu size={22}/></button>
-              <div className="flex bg-[#0b0e11] p-1 rounded-2xl border border-white/5 shrink-0">
+              <div className="flex bg-[#0b0e11] p-1 rounded-2xl border border-white/5 shrink-0 overflow-x-auto no-scrollbar max-w-[200px] sm:max-w-none">
                  {['FOREX', 'BINARY', 'INDICES', 'COMMODITIES'].map(cat => (
                    <button 
                     key={cat} 
                     onClick={() => setMarketType(cat as MarketType)} 
-                    className={`relative px-3 lg:px-6 py-2 rounded-xl text-[9px] lg:text-[11px] font-black tracking-widest transition-all ${marketType === cat ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-700 hover:text-gray-300'}`}
+                    className={`relative px-3 lg:px-6 py-2 rounded-xl text-[9px] lg:text-[11px] font-black tracking-widest transition-all whitespace-nowrap ${marketType === cat ? 'bg-blue-600 text-white shadow-xl' : 'text-gray-700 hover:text-gray-300'}`}
                    >
                     {cat}
                     {cat === 'BINARY' && !isExpert && <LockKeyhole size={10} className="absolute top-1 right-2 text-red-500/50" />}
@@ -397,15 +395,16 @@ const App: React.FC = () => {
            <button 
              onClick={handleGenerateSignal} 
              disabled={isAnalyzing} 
-             className="px-4 lg:px-12 py-2 lg:py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl lg:rounded-2xl font-black text-[10px] lg:text-xs uppercase tracking-[0.2em] flex items-center gap-2 lg:gap-3 shadow-2xl transition-all whitespace-nowrap"
+             className="px-4 lg:px-12 py-2 lg:py-3.5 bg-blue-600 hover:bg-blue-500 text-white rounded-xl lg:rounded-2xl font-black text-[10px] lg:text-xs uppercase tracking-[0.2em] flex items-center gap-2 lg:gap-3 shadow-2xl transition-all whitespace-nowrap shrink-0"
            >
               {isAnalyzing ? <Loader2 size={16} className="animate-spin" /> : <Zap size={16} />}
               <span className="hidden sm:inline">{isAnalyzing ? (user.tier === 'BASIC' ? "Scanning..." : "Analyzing...") : "Run Analysis"}</span>
+              <span className="sm:hidden">{isAnalyzing ? "..." : "SCAN"}</span>
            </button>
         </header>
 
         <main className="flex-1 flex overflow-hidden relative">
-          <div className={`flex-1 overflow-y-auto custom-scrollbar relative ${activeView === 'TERMINAL' && 'bg-[#0b0e11]'}`}>
+          <div className={`flex-1 overflow-y-auto custom-scrollbar relative pb-24 lg:pb-0 ${activeView === 'TERMINAL' && 'bg-[#0b0e11]'}`}>
              {activeView === 'TERMINAL' && (
                <CandleChart 
                   candles={candles} 
@@ -466,7 +465,7 @@ const App: React.FC = () => {
 
           {/* 📱 MOBILE SIGNAL PANEL (Overlay) */}
           {activeView === 'TERMINAL' && mobileTab === 'SIGNALS' && (
-             <div className="lg:hidden absolute inset-0 z-30 bg-[#161a1e] flex flex-col animate-in slide-in-from-right">
+             <div className="lg:hidden absolute inset-0 z-30 bg-[#161a1e] flex flex-col animate-in slide-in-from-right pb-20">
                 <div className="p-4 border-b border-white/5 flex items-center justify-between bg-[#161a1e]">
                    <h3 className="font-black uppercase text-white flex items-center gap-2"><BarChart2 className="text-blue-500" size={18}/> Active Signals</h3>
                    <button onClick={() => setMobileTab('CHART')} className="p-2 bg-white/5 rounded-full text-gray-400"><X size={18}/></button>
@@ -484,12 +483,12 @@ const App: React.FC = () => {
         </main>
 
         {/* 📱 MOBILE BOTTOM NAVIGATION */}
-        <nav className="lg:hidden h-16 bg-[#161a1e] border-t border-white/5 flex items-center justify-around shrink-0 z-50 px-2 pb-safe">
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#161a1e] border-t border-white/5 flex items-center justify-around shrink-0 z-50 px-2 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
            <button onClick={() => setShowMobileMenu(true)} className="flex flex-col items-center gap-1 p-2 text-gray-500">
               <Menu size={20} />
               <span className="text-[9px] font-black uppercase">Menu</span>
            </button>
-           <button onClick={() => setMobileTab('CHART')} className={`flex flex-col items-center gap-1 p-2 ${mobileTab === 'CHART' ? 'text-blue-500' : 'text-gray-500'}`}>
+           <button onClick={() => setMobileTab('CHART')} className={`flex flex-col items-center gap-1 p-2 ${mobileTab === 'CHART' && activeView === 'TERMINAL' ? 'text-blue-500' : 'text-gray-500'}`}>
               <LayoutDashboard size={20} />
               <span className="text-[9px] font-black uppercase">Chart</span>
            </button>

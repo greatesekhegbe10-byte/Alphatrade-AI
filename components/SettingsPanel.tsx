@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { Shield, Bell, Moon, Sun, Monitor, Save, User, BookOpen, Brain, Zap, LockKeyhole } from 'lucide-react';
 import { UserSettings, TradingPersonality, LearningMode } from '../types';
@@ -11,7 +10,7 @@ interface Props {
 
 const SettingsPanel: React.FC<Props> = ({ settings, setSettings, canAccessAI = false }) => {
   return (
-    <div className="max-w-4xl mx-auto p-4 sm:p-8 space-y-8 h-full overflow-y-auto custom-scrollbar animate-in fade-in duration-500 pb-12">
+    <div className="max-w-4xl mx-auto p-4 sm:p-8 space-y-8 h-full overflow-y-auto custom-scrollbar animate-in fade-in duration-500 pb-24">
       <div className="space-y-1">
         <h2 className="text-2xl sm:text-3xl font-black text-white uppercase tracking-tighter">Terminal Preferences</h2>
         <p className="text-gray-500 text-sm font-medium">Configure neural parameters and interface personality.</p>
@@ -117,8 +116,8 @@ const SettingsPanel: React.FC<Props> = ({ settings, setSettings, canAccessAI = f
         </section>
       </div>
 
-      <div className="flex justify-end pt-4">
-        <button className="flex items-center gap-3 px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl transition-all active:scale-95">
+      <div className="flex justify-end pt-4 pb-4">
+        <button className="flex items-center gap-3 px-8 py-4 bg-blue-600 hover:bg-blue-500 text-white rounded-2xl font-black text-xs uppercase tracking-widest shadow-2xl transition-all active:scale-95 w-full sm:w-auto justify-center">
           <Save size={18} /> Deploy Preferences
         </button>
       </div>

@@ -49,11 +49,11 @@ const SubscriptionPortal: React.FC<Props> = ({ user, onSuccess, onCancel }) => {
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0b0e11]/98 backdrop-blur-3xl animate-in fade-in duration-500">
-      <div className="w-full max-w-5xl bg-[#161a1e] border border-white/5 rounded-[40px] overflow-hidden shadow-[0_0_100px_rgba(37,99,235,0.2)] flex flex-col md:flex-row min-h-[600px]">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-[#0b0e11]/98 backdrop-blur-3xl animate-in fade-in duration-500 overflow-y-auto">
+      <div className="w-full max-w-5xl bg-[#161a1e] border border-white/5 rounded-[40px] overflow-hidden shadow-[0_0_100px_rgba(37,99,235,0.2)] flex flex-col md:flex-row min-h-[600px] my-auto">
         
-        {/* Left: Tiers */}
-        <div className="flex-1 p-8 md:p-12 space-y-10 border-r border-white/5">
+        {/* Left: Tiers (Scrollable on Mobile) */}
+        <div className="flex-1 p-8 md:p-12 space-y-10 border-b md:border-b-0 md:border-r border-white/5">
           <div className="flex justify-between items-start">
             <div className="space-y-4">
               <h2 className="text-3xl sm:text-4xl font-black text-white flex items-center gap-4 tracking-tighter uppercase leading-none">
@@ -148,7 +148,7 @@ const SubscriptionPortal: React.FC<Props> = ({ user, onSuccess, onCancel }) => {
             </div>
           </div>
 
-          <div className="space-y-6">
+          <div className="space-y-6 mt-8">
             <div className="p-6 bg-white/5 rounded-[32px] border border-white/5 space-y-2">
                <div className="flex items-center justify-between">
                   <p className="text-[10px] font-black text-gray-700 uppercase tracking-widest">Settlement Amount</p>

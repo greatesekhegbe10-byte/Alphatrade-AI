@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { 
   Brain, Send, Loader2, Target, ShieldCheck, 
@@ -49,11 +48,10 @@ const AnalysisPanel: React.FC<Props> = ({ candles, symbol }) => {
   };
 
   return (
-    <div className="p-4 sm:p-8 space-y-6 sm:space-y-10 h-full overflow-y-auto bg-[#0b0e11] max-w-6xl mx-auto custom-scrollbar animate-in fade-in duration-700 pb-12">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-10 h-full overflow-y-auto bg-[#0b0e11] max-w-6xl mx-auto custom-scrollbar animate-in fade-in duration-700 pb-24">
       <div className="space-y-3 border-b border-white/5 pb-6 sm:pb-8">
         <div className="flex items-center gap-3 sm:gap-4">
           <div className="p-2 sm:p-3 bg-blue-600/10 rounded-2xl border border-blue-500/20">
-            {/* Fix: Replaced invalid responsive size prop with Tailwind classes */}
             <Brain className="text-blue-500 w-6 h-6 sm:w-8 sm:h-8" />
           </div>
           <div>
@@ -80,7 +78,6 @@ const AnalysisPanel: React.FC<Props> = ({ candles, symbol }) => {
           <div className="space-y-4 flex-1 flex flex-col">
              <div className="flex gap-2">
                 <div className="relative flex-1">
-                  {/* Fix: Replaced invalid responsive size prop with Tailwind classes */}
                   <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 text-gray-700 w-3.5 h-3.5 sm:w-4 sm:h-4" />
                   <input 
                     value={query} 
@@ -102,7 +99,6 @@ const AnalysisPanel: React.FC<Props> = ({ candles, symbol }) => {
              <div className="flex-1 bg-[#0b0e11] p-4 sm:p-6 rounded-3xl border border-white/5 min-h-[250px] sm:min-h-[350px] relative overflow-y-auto">
                 {!situation && !isLoading && (
                   <div className="absolute inset-0 flex flex-col items-center justify-center opacity-20 p-6 text-center">
-                     {/* Fix: Replaced invalid responsive size prop with Tailwind classes */}
                      <BarChart3 className="w-10 h-10 sm:w-12 sm:h-12" />
                      <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest mt-4">Awaiting SIT-REP Query</p>
                   </div>
@@ -188,7 +184,6 @@ const AnalysisPanel: React.FC<Props> = ({ candles, symbol }) => {
             </div>
           ) : (
              <div className="h-[200px] flex flex-col items-center justify-center text-gray-700 opacity-20 border-2 border-dashed border-white/5 rounded-[32px] sm:rounded-[40px] px-6 text-center">
-                {/* Fix: Replaced invalid responsive size prop with Tailwind classes */}
                 <Calculator className="w-8 h-8 sm:w-12 sm:h-12"/>
                 <p className="text-[9px] sm:text-[10px] font-black uppercase tracking-widest mt-4">Input Trade Metrics</p>
              </div>

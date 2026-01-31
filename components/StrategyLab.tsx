@@ -30,7 +30,7 @@ const StrategyLab: React.FC<Props> = ({ candles, symbol }) => {
   };
 
   return (
-    <div className="p-4 sm:p-8 space-y-6 sm:space-y-10 h-full overflow-y-auto bg-[#0b0e11] max-w-7xl mx-auto custom-scrollbar animate-in fade-in duration-700 pb-20">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-10 h-full overflow-y-auto bg-[#0b0e11] max-w-7xl mx-auto custom-scrollbar animate-in fade-in duration-700 pb-24">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-end gap-6 border-b border-white/5 pb-8">
         <div className="space-y-3">
           <div className="flex items-center gap-3">
@@ -47,7 +47,7 @@ const StrategyLab: React.FC<Props> = ({ candles, symbol }) => {
           <button 
             onClick={handleRunBacktest}
             disabled={isRunning}
-            className="px-6 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-xl shadow-purple-600/20 transition-all active:scale-95"
+            className="px-6 py-3 bg-purple-600 hover:bg-purple-500 disabled:opacity-50 text-white rounded-2xl font-black text-[10px] uppercase tracking-widest flex items-center gap-2 shadow-xl shadow-purple-600/20 transition-all active:scale-95 w-full md:w-auto justify-center"
           >
             {isRunning ? <RefreshCw className="animate-spin" size={16}/> : <Play size={16} />}
             {isRunning ? 'Running Simulation...' : 'Run Simulation'}
@@ -183,7 +183,7 @@ const StrategyLab: React.FC<Props> = ({ candles, symbol }) => {
                   <Database size={20} className="text-blue-500" /> Simulation Log
                 </h3>
                 <div className="overflow-x-auto">
-                  <table className="w-full text-left">
+                  <table className="w-full text-left min-w-[500px]">
                     <thead>
                       <tr className="border-b border-white/5 text-[9px] font-black text-gray-500 uppercase tracking-widest">
                         <th className="pb-3 pl-2">Time</th>

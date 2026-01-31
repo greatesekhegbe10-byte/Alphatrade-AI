@@ -1,4 +1,3 @@
-
 import React, { useState } from 'react';
 import { Calculator, Shield, Target, TrendingUp, RefreshCw, Layers, ShieldCheck } from 'lucide-react';
 
@@ -12,16 +11,16 @@ const RiskCalculator: React.FC = () => {
   const lotSize = riskAmount / (slPips * pipValue);
 
   return (
-    <div className="p-8 space-y-8 h-full overflow-y-auto bg-[#0b0e11] animate-in fade-in duration-500">
+    <div className="p-4 sm:p-8 space-y-8 h-full overflow-y-auto bg-[#0b0e11] animate-in fade-in duration-500 pb-24">
       <div className="space-y-1">
-        <h2 className="text-3xl font-black flex items-center gap-3 uppercase tracking-tighter">
+        <h2 className="text-2xl sm:text-3xl font-black flex items-center gap-3 uppercase tracking-tighter">
           <Calculator className="text-blue-500" size={32} /> Position Sizer
         </h2>
         <p className="text-gray-500 text-sm font-medium">Precision risk management node for professional execution.</p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-        <div className="bg-[#161a1e] border border-white/5 p-10 rounded-[40px] space-y-10 shadow-2xl">
+        <div className="bg-[#161a1e] border border-white/5 p-6 sm:p-10 rounded-[40px] space-y-10 shadow-2xl">
            <div className="space-y-6">
               <div className="space-y-2">
                 <label className="text-[10px] font-black text-gray-600 uppercase tracking-widest px-1">Account Balance (USD)</label>
@@ -87,7 +86,7 @@ const RiskCalculator: React.FC = () => {
            </div>
            
            <div className="p-8 bg-emerald-500/5 border border-emerald-500/10 rounded-[40px] flex items-center gap-6">
-              <ShieldCheck className="text-emerald-500" size={40} />
+              <ShieldCheck className="text-emerald-500 w-10 h-10 shrink-0" />
               <p className="text-xs text-gray-500 font-medium leading-relaxed italic">"Risk management is the only holy grail in trading. Never exceed your established per-trade node limit."</p>
            </div>
         </div>

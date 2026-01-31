@@ -1,4 +1,3 @@
-
 import React from 'react';
 import { JournalEntry } from '../types';
 import { Book, History, Plus, TrendingUp, TrendingDown, Clock, Smile, Frown, Brain } from 'lucide-react';
@@ -10,20 +9,20 @@ interface Props {
 
 const JournalPanel: React.FC<Props> = ({ journal, setJournal }) => {
   return (
-    <div className="p-8 space-y-8 h-full overflow-y-auto bg-[#0b0e11] animate-in fade-in duration-500">
+    <div className="p-4 sm:p-8 space-y-8 h-full overflow-y-auto bg-[#0b0e11] animate-in fade-in duration-500 pb-20">
       <div className="flex justify-between items-end">
         <div className="space-y-1">
-          <h2 className="text-3xl font-black flex items-center gap-3">
+          <h2 className="text-2xl sm:text-3xl font-black flex items-center gap-3">
             <Book className="text-blue-500" size={32} /> Trade Journal
           </h2>
-          <p className="text-gray-500 text-sm">Document your trading psychology and results for AI refinement.</p>
+          <p className="text-gray-500 text-xs sm:text-sm">Document your trading psychology and results.</p>
         </div>
-        <button className="bg-blue-600 hover:bg-blue-500 text-white px-6 py-2.5 rounded-xl font-black text-xs flex items-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95 transition-all">
-          <Plus size={16}/> LOG MANUAL TRADE
+        <button className="bg-blue-600 hover:bg-blue-500 text-white px-4 sm:px-6 py-2.5 rounded-xl font-black text-xs flex items-center gap-2 shadow-lg shadow-blue-600/20 active:scale-95 transition-all whitespace-nowrap">
+          <Plus size={16}/> LOG TRADE
         </button>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
         <div className="bg-[#161a1e] p-5 rounded-2xl border border-[#1e2329] space-y-1">
           <p className="text-[10px] text-gray-500 font-black uppercase tracking-widest">Win Rate</p>
           <p className="text-3xl font-black text-green-500">68.4%</p>
