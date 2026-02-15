@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>AlphaTrade AI - Professional Terminal</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -12,18 +12,35 @@
     <script src="https://checkout.flutterwave.com/v3.js"></script>
 
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
+        :root {
+          --app-height: 100%;
+        }
+        html, body {
+            height: 100dvh;
+            width: 100vw;
+            margin: 0;
+            padding: 0;
+            overflow: hidden; /* App-like feel, inner containers will scroll */
             background-color: #0b0e11;
             color: #eaecef;
-            margin: 0;
-            overflow: hidden;
+            font-family: 'Inter', sans-serif;
+            -webkit-font-smoothing: antialiased;
+            -moz-osx-font-smoothing: grayscale;
+            touch-action: manipulation;
+        }
+        #root {
+          height: 100%;
+          width: 100%;
         }
         .mono { font-family: 'JetBrains Mono', monospace; }
-        ::-webkit-scrollbar { width: 6px; height: 6px; }
-        ::-webkit-scrollbar-track { background: #1e2329; }
-        ::-webkit-scrollbar-thumb { background: #474d57; border-radius: 3px; }
-        ::-webkit-scrollbar-thumb:hover { background: #5e6673; }
+        
+        /* Custom scrollbar for desktop */
+        @media (min-width: 1024px) {
+          ::-webkit-scrollbar { width: 6px; height: 6px; }
+          ::-webkit-scrollbar-track { background: #1e2329; }
+          ::-webkit-scrollbar-thumb { background: #474d57; border-radius: 3px; }
+          ::-webkit-scrollbar-thumb:hover { background: #5e6673; }
+        }
 
         @keyframes spin-slow {
           from { transform: rotate(0deg); }
@@ -32,6 +49,10 @@
         .animate-spin-slow {
           animation: spin-slow 8s linear infinite;
         }
+
+        /* Hide scrollbars but keep functionality on mobile */
+        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
     </style>
     <script type="importmap">
 {

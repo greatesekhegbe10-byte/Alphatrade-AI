@@ -260,7 +260,7 @@ const App: React.FC = () => {
 
   if (isAuthLoading || paymentStatus === 'VERIFYING') {
     return (
-      <div className="h-screen bg-[#0b0e11] flex flex-col items-center justify-center space-y-6">
+      <div className="h-[100dvh] bg-[#0b0e11] flex flex-col items-center justify-center space-y-6">
         <Activity className="text-blue-500 animate-spin-slow" size={64} />
         <p className="text-[10px] font-black uppercase tracking-[0.4em] text-gray-500 animate-pulse">{startupStep}</p>
       </div>
@@ -269,7 +269,7 @@ const App: React.FC = () => {
 
   if (paymentStatus === 'SUCCESS') {
     return (
-      <div className="h-screen bg-[#0b0e11] flex flex-col items-center justify-center space-y-6 animate-in zoom-in">
+      <div className="h-[100dvh] bg-[#0b0e11] flex flex-col items-center justify-center space-y-6 animate-in zoom-in">
         <div className="size-20 bg-emerald-500/10 rounded-full flex items-center justify-center border border-emerald-500/20 shadow-[0_0_30px_rgba(16,185,129,0.3)]">
            <CheckCircle2 className="text-emerald-500" size={40} />
         </div>
@@ -293,8 +293,8 @@ const App: React.FC = () => {
 
   if (!user) {
     return (
-      <div className="min-h-screen bg-[#0b0e11] flex items-center justify-center p-6 relative">
-        <div className="w-full max-w-lg bg-[#161a1e] border border-white/5 p-8 sm:p-12 rounded-[40px] shadow-2xl space-y-10 animate-in fade-in zoom-in-95 duration-700">
+      <div className="min-h-[100dvh] bg-[#0b0e11] flex items-center justify-center p-6 relative overflow-y-auto">
+        <div className="w-full max-w-lg bg-[#161a1e] border border-white/5 p-8 sm:p-12 rounded-[40px] shadow-2xl space-y-10 animate-in fade-in zoom-in-95 duration-700 my-auto">
           <div className="text-center space-y-3">
              <ShieldCheck className="text-blue-500 size-16 mx-auto mb-4" />
              <h1 className="text-4xl font-black text-white uppercase leading-none tracking-tighter">Alpha<span className="text-blue-500">Trade</span> AI</h1>
@@ -335,7 +335,7 @@ const App: React.FC = () => {
   ];
 
   return (
-    <div className="flex flex-col lg:flex-row h-screen w-full bg-[#0b0e11] text-[#eaecef] overflow-hidden select-none font-sans">
+    <div className="flex flex-col lg:flex-row h-[100dvh] w-full bg-[#0b0e11] text-[#eaecef] overflow-hidden select-none font-sans">
       {showPaywall && <SubscriptionPortal user={user} onSuccess={(tier) => { setUser({...user, tier}); setShowPaywall(false); }} onCancel={() => setShowPaywall(false)} />}
       
       {/* 📱 MOBILE SIDEBAR (Drawer) */}
@@ -348,7 +348,7 @@ const App: React.FC = () => {
           </div>
           <button className="lg:hidden text-gray-500" onClick={() => setShowMobileMenu(false)}><X size={24}/></button>
         </div>
-        <nav className="p-5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1">
+        <nav className="p-5 space-y-1.5 overflow-y-auto custom-scrollbar flex-1 min-h-0">
           {sidebarItems.map(view => (
             <button 
               key={view.id} 
@@ -373,7 +373,7 @@ const App: React.FC = () => {
         </div>
       </aside>
 
-      <div className="flex-1 flex flex-col min-w-0 z-10 relative">
+      <div className="flex-1 flex flex-col min-w-0 z-10 relative h-full">
         {/* 📱 MOBILE HEADER */}
         <header className="h-16 lg:h-20 bg-[#161a1e] border-b border-white/5 flex items-center justify-between px-4 lg:px-10 shadow-2xl shrink-0 gap-4">
            <div className="flex items-center gap-3 lg:gap-8 overflow-hidden">
@@ -403,8 +403,8 @@ const App: React.FC = () => {
            </button>
         </header>
 
-        <main className="flex-1 flex overflow-hidden relative">
-          <div className={`flex-1 overflow-y-auto custom-scrollbar relative pb-24 lg:pb-0 ${activeView === 'TERMINAL' && 'bg-[#0b0e11]'}`}>
+        <main className="flex-1 flex overflow-hidden relative min-h-0 h-full">
+          <div className={`flex-1 overflow-y-auto custom-scrollbar relative pb-24 lg:pb-0 min-h-0 ${activeView === 'TERMINAL' && 'bg-[#0b0e11]'}`}>
              {activeView === 'TERMINAL' && (
                <CandleChart 
                   candles={candles} 
@@ -439,7 +439,7 @@ const App: React.FC = () => {
 
           {/* 💻 DESKTOP RIGHT PANEL (Signals) */}
           {activeView === 'TERMINAL' && (
-            <div className="hidden lg:flex w-[420px] shrink-0 border-l border-white/5 bg-[#161a1e] flex-col z-20">
+            <div className="hidden lg:flex w-[420px] shrink-0 border-l border-white/5 bg-[#161a1e] flex-col z-20 min-h-0 overflow-hidden">
                <SignalPanel 
                  signals={signals} 
                  activeType={marketType} 
@@ -465,12 +465,12 @@ const App: React.FC = () => {
 
           {/* 📱 MOBILE SIGNAL PANEL (Overlay) */}
           {activeView === 'TERMINAL' && mobileTab === 'SIGNALS' && (
-             <div className="lg:hidden absolute inset-0 z-30 bg-[#161a1e] flex flex-col animate-in slide-in-from-right pb-20">
-                <div className="p-4 border-b border-white/5 flex items-center justify-between bg-[#161a1e]">
+             <div className="lg:hidden absolute inset-0 z-[55] bg-[#161a1e] flex flex-col animate-in slide-in-from-right h-full">
+                <div className="p-4 border-b border-white/5 flex items-center justify-between bg-[#161a1e] shrink-0">
                    <h3 className="font-black uppercase text-white flex items-center gap-2"><BarChart2 className="text-blue-500" size={18}/> Active Signals</h3>
                    <button onClick={() => setMobileTab('CHART')} className="p-2 bg-white/5 rounded-full text-gray-400"><X size={18}/></button>
                 </div>
-                <div className="flex-1 overflow-hidden">
+                <div className="flex-1 overflow-y-auto pb-32 min-h-0">
                    <SignalPanel 
                     signals={signals} 
                     activeType={marketType} 
@@ -483,16 +483,16 @@ const App: React.FC = () => {
         </main>
 
         {/* 📱 MOBILE BOTTOM NAVIGATION */}
-        <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#161a1e] border-t border-white/5 flex items-center justify-around shrink-0 z-50 px-2 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
+        <nav className="lg:hidden fixed bottom-0 left-0 right-0 h-16 bg-[#161a1e] border-t border-white/5 flex items-center justify-around shrink-0 z-[60] px-2 pb-safe shadow-[0_-10px_40px_rgba(0,0,0,0.5)]">
            <button onClick={() => setShowMobileMenu(true)} className="flex flex-col items-center gap-1 p-2 text-gray-500">
               <Menu size={20} />
               <span className="text-[9px] font-black uppercase">Menu</span>
            </button>
-           <button onClick={() => setMobileTab('CHART')} className={`flex flex-col items-center gap-1 p-2 ${mobileTab === 'CHART' && activeView === 'TERMINAL' ? 'text-blue-500' : 'text-gray-500'}`}>
+           <button onClick={() => { setActiveView('TERMINAL'); setMobileTab('CHART'); }} className={`flex flex-col items-center gap-1 p-2 ${mobileTab === 'CHART' && activeView === 'TERMINAL' ? 'text-blue-500' : 'text-gray-500'}`}>
               <LayoutDashboard size={20} />
               <span className="text-[9px] font-black uppercase">Chart</span>
            </button>
-           <button onClick={() => setMobileTab('SIGNALS')} className={`flex flex-col items-center gap-1 p-2 ${mobileTab === 'SIGNALS' ? 'text-blue-500' : 'text-gray-500'}`}>
+           <button onClick={() => { setActiveView('TERMINAL'); setMobileTab('SIGNALS'); }} className={`flex flex-col items-center gap-1 p-2 ${mobileTab === 'SIGNALS' ? 'text-blue-500' : 'text-gray-500'}`}>
               <Activity size={20} />
               <span className="text-[9px] font-black uppercase">Signals</span>
               {signals.length > 0 && <span className="absolute top-3 ml-4 size-2 bg-red-500 rounded-full animate-pulse" />}
