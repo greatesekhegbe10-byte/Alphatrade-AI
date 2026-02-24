@@ -1,5 +1,16 @@
 import { Transaction, PaymentGateway, SubscriptionTier, User } from '../types';
-import { authService } from './authService';
+import { auth } from '../src/firebase';
+import { getIdToken } from 'firebase/auth';
+
+const getHeaders = async () => {
+  const user = auth.currentUser;
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  if (user) {
+    const token = await getIdToken(user, true);
+    headers['Authorization'] = `Bearer ${token}`;
+  }
+  return headers;
+};
 
 /**
  * 🔒 ALPHA-FINTECH SECURE PAYMENT ARCHITECTURE
@@ -170,28 +181,21 @@ export const paymentService = {
    * Matches the URL params with the local ledger.
    */
   verify: async (reference: string, gateway: PaymentGateway): Promise<boolean> => {
-    const logs = paymentService.getAllTransactions();
-    const txIndex = logs.findIndex(t => t.reference === reference);
-    
-    if (txIndex === -1) {
-      console.warn(`[VERIFY] Transaction ${reference} not found locally.`);
-      // In production, we would query the backend here even if local log is missing.
-      return false; 
+    try {
+      const headers = await getHeaders();
+      const response = await fetch('/api/payments/verify', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ reference, gateway })
+      });
+
+      if (!response.ok) return false;
+      
+      const data = await response.json();
+      return data.success;
+    } catch (error) {
+      console.error('[PAYMENT_SERVICE] Verification Error:', error);
+      return false;
     }
-
-    console.log(`[VERIFY] Validating Blockchain Hash for ${reference}...`);
-    
-    // Simulate Verification Latency
-    await new Promise(r => setTimeout(r, 1200));
-
-    // Update Status
-    logs[txIndex].status = 'SUCCESS';
-    logs[txIndex].verifiedAt = Date.now();
-    localStorage.setItem(STORAGE_KEY_TX, JSON.stringify(logs));
-
-    // Grant Access
-    authService.updateUserSubscription(logs[txIndex].userId, logs[txIndex].tier);
-
-    return true;
   }
 };

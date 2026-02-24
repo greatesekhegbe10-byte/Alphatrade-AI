@@ -6,6 +6,7 @@ import {
 } from 'lucide-react';
 import { AI_STRATEGIES } from '../constants';
 import { strategyEngine } from '../services/strategyEngine';
+import { strategyService } from '../services/strategyService';
 import { Candle, BacktestResult, Strategy } from '../types';
 
 interface Props {
@@ -20,12 +21,42 @@ const StrategyLab: React.FC<Props> = ({ candles, symbol }) => {
   const [isRunning, setIsRunning] = useState(false);
   const [risk, setRisk] = useState(1.0);
 
+  useEffect(() => {
+    const fetchHistory = async () => {
+      try {
+        const history = await strategyService.getHistory();
+        setRunHistory(history.map((h: any) => ({
+          timestamp: h.createdAt,
+          strategyName: h.strategyName,
+          result: h.result
+        })));
+      } catch (e) {
+        console.error('Failed to fetch strategy history:', e);
+      }
+    };
+    fetchHistory();
+  }, []);
+
   const handleRunBacktest = async () => {
     setIsRunning(true);
     await new Promise(resolve => setTimeout(resolve, 800));
     const result = await strategyEngine.runBacktest(candles, selectedStrategy.id, risk);
     setBacktestResult(result);
-    setRunHistory(prev => [{ timestamp: Date.now(), strategyName: selectedStrategy.name, result }, ...prev]);
+    
+    const historyEntry = { timestamp: Date.now(), strategyName: selectedStrategy.name, result };
+    setRunHistory(prev => [historyEntry, ...prev]);
+    
+    try {
+      await strategyService.saveResult({
+        strategyId: selectedStrategy.id,
+        strategyName: selectedStrategy.name,
+        result,
+        symbol
+      });
+    } catch (e) {
+      console.error('Failed to save backtest result:', e);
+    }
+    
     setIsRunning(false);
   };
 

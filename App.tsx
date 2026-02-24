@@ -12,8 +12,8 @@ import { generateInitialCandles } from './services/marketSimulator';
 import { analyzeMarket, getMarketSituationHUD } from './services/geminiService';
 import { authService } from './services/authService';
 import { paymentService } from './services/paymentService';
-import { detectPatterns } from './services/patternDetectionService';
-import { getNextHighImpactEvent } from './services/newsService';
+import { journalService } from './services/journalService';
+import { signalHistoryService } from './services/signalHistoryService';
 import CandleChart from './components/CandleChart';
 import SignalPanel from './components/SignalPanel';
 import SettingsPanel from './components/SettingsPanel';
@@ -178,6 +178,17 @@ const App: React.FC = () => {
            setAuthError('Node Restricted. Verify account.');
         } else {
            setUser(activeUser);
+           // Fetch history data
+           try {
+             const [signalsHistory, journalEntries] = await Promise.all([
+               signalHistoryService.getHistory(),
+               journalService.getEntries()
+             ]);
+             setSignals(signalsHistory);
+             setJournal(journalEntries);
+           } catch (e) {
+             console.error('Failed to fetch history data:', e);
+           }
         }
       }
       setIsAuthLoading(false);
@@ -210,6 +221,18 @@ const App: React.FC = () => {
         ? await authService.login(authForm.email, authForm.password)
         : await authService.signup(authForm.name, authForm.email, authForm.password);
       setUser(res.user);
+      
+      // Fetch history data after login
+      try {
+        const [signalsHistory, journalEntries] = await Promise.all([
+          signalHistoryService.getHistory(),
+          journalService.getEntries()
+        ]);
+        setSignals(signalsHistory);
+        setJournal(journalEntries);
+      } catch (e) {
+        console.error('Failed to fetch history data after login:', e);
+      }
     } catch (err: any) {
       setAuthError(err.message || 'Identity verification failed.');
     } finally {
@@ -228,16 +251,13 @@ const App: React.FC = () => {
     setIsAnalyzing(true);
     if (user.tier === 'BASIC') await new Promise(r => setTimeout(r, 4500));
 
-    const patterns = detectPatterns(candles);
-    const nextNews = getNextHighImpactEvent(selectedPair.base);
-
     const result = await analyzeMarket(
       selectedPair.symbol,
       candles,
       marketType,
       timeframe,
-      patterns,
-      nextNews,
+      [], // patterns handled by backend
+      undefined, // news handled by backend
       settings.personality,
       broker.balance,
       settings.riskPercent
@@ -445,11 +465,9 @@ const App: React.FC = () => {
                  activeType={marketType} 
                  broker={broker} 
                  settings={settings} 
-                 onMarkTrade={(s) => {
+                 onMarkTrade={async (s) => {
                     const win = Math.random() > 0.3;
-                    setJournal(prev => [{ 
-                      id: Math.random().toString(), 
-                      timestamp: Date.now(), 
+                    const entry: Partial<JournalEntry> = { 
                       pair: s.pair, 
                       type: s.type, 
                       result: win ? 'WIN' : 'LOSS', 
@@ -457,7 +475,14 @@ const App: React.FC = () => {
                       emotion: 'CALM', 
                       aiFeedback: "Verified SMC entry execution.", 
                       signalHash: s.hash 
-                    }, ...prev]);
+                    };
+                    try {
+                      const savedEntry = await journalService.addEntry(entry);
+                      setJournal(prev => [savedEntry, ...prev]);
+                    } catch (e) {
+                      console.error('Failed to save journal entry:', e);
+                      setJournal(prev => [{ id: Math.random().toString(), timestamp: Date.now(), ...entry } as JournalEntry, ...prev]);
+                    }
                  }}
                />
             </div>

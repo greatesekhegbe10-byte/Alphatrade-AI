@@ -1,42 +1,22 @@
-import { GoogleGenAI, Type } from "@google/genai";
 import { Candle, Signal, MarketType, TradingPersonality, ValidationResult, LiveSituation, Timeframe, CandlestickPattern, NewsEvent } from "../types";
+import { GoogleGenAI, Type } from "@google/genai";
+import { auth } from "../src/firebase";
+import { getIdToken } from "firebase/auth";
 
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+const ai = new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
 
-/**
- * ALPHA-CORE ANALYTICS ENGINE v10.2
- * Enhanced JSON sanitizer to fix "Unexpected token" syntax errors.
- */
+const cleanJsonString = (str: string) => {
+  return str.replace(/```json|```/g, "").trim();
+};
 
-const cleanJsonString = (text: string | undefined): string => {
-  if (!text) return "{}";
-  
-  let cleaned = text.trim();
-
-  // 1. Remove Markdown code blocks
-  cleaned = cleaned.replace(/```json/gi, '').replace(/```/g, '');
-
-  // 2. Remove comments (Single line and Multi-line)
-  cleaned = cleaned.replace(/\/\/.*$/gm, '');
-  cleaned = cleaned.replace(/\/\*[\s\S]*?\*\//g, '');
-
-  // 3. Find valid JSON envelope
-  const firstBrace = cleaned.indexOf('{');
-  const lastBrace = cleaned.lastIndexOf('}');
-  
-  if (firstBrace !== -1 && lastBrace !== -1) {
-    cleaned = cleaned.substring(firstBrace, lastBrace + 1);
-  } else {
-    // If no braces, return empty object to prevent crash
-    return "{}";
+const getHeaders = async () => {
+  const user = auth.currentUser;
+  const headers: HeadersInit = { 'Content-Type': 'application/json' };
+  if (user) {
+    const token = await getIdToken(user, true);
+    headers['Authorization'] = `Bearer ${token}`;
   }
-
-  // 4. Fix Trailing Commas (Common cause of SyntaxError)
-  // Replaces ", }" with "}" and ", ]" with "]"
-  cleaned = cleaned.replace(/,\s*}/g, '}');
-  cleaned = cleaned.replace(/,\s*]/g, ']');
-
-  return cleaned;
+  return headers;
 };
 
 export const analyzeMarket = async (
@@ -51,79 +31,29 @@ export const analyzeMarket = async (
   riskPercent: number = 1
 ): Promise<Partial<Signal>> => {
   try {
-    const prompt = `Act as an Elite Tier-1 Hedge Fund Quantitative Analyst.
-Analyze ${pair} on the ${timeframe} timeframe.
-MARKET DATA (Last 50 Candles): ${JSON.stringify(candles.slice(-50))}
-DETECTED PATTERNS: ${JSON.stringify(patterns.slice(-5))}
-NEXT NEWS EVENT: ${JSON.stringify(news)}
-ACCOUNT CONTEXT: Balance: $${accountBalance}, Risk: ${riskPercent}%
-
-LOGIC:
-1. If Balance < $100:
-   - Assume "Cent Account" or "Binary Options".
-   - Minimum Lot Size = 0.01 (Micro) or calculate based on Cent units.
-   - Do NOT return lot size 0.
-2. If MarketType is BINARY:
-   - Ignore Stop Loss/Take Profit.
-   - Provide "Expiry" (e.g., 5 min, 15 min).
-3. If Standard Forex:
-   - Calculate exact SL/TP/Lot Size based on risk.
-
-OUTPUT: High-precision JSON with institutional confluence factors.`;
-
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            type: { type: Type.STRING, enum: ['BUY', 'SELL', 'WAIT', 'CALL', 'PUT'] },
-            entry: { type: Type.NUMBER },
-            tp: { type: Type.NUMBER },
-            sl: { type: Type.NUMBER },
-            pips: { type: Type.NUMBER },
-            lotSize: { type: Type.NUMBER },
-            rr: { type: Type.STRING },
-            session: { type: Type.STRING },
-            trend: { type: Type.STRING },
-            pattern: { type: Type.STRING },
-            confidence: { type: Type.NUMBER },
-            riskLevel: { type: Type.STRING, enum: ['LOW', 'MEDIUM', 'HIGH'] },
-            regime: { type: Type.STRING, enum: ['TRENDING', 'RANGING', 'CHOPPY', 'HIGH_VOLATILITY', 'LOW_LIQUIDITY'] },
-            reasoning: { type: Type.STRING },
-            breakdown: {
-              type: Type.OBJECT,
-              properties: {
-                indicators: { type: Type.STRING },
-                structure: { type: Type.STRING },
-                manipulationRisk: { type: Type.STRING },
-                manipulationScore: { type: Type.NUMBER },
-                confluence: { type: Type.ARRAY, items: { type: Type.STRING } }
-              },
-              required: ["indicators", "structure", "manipulationRisk", "manipulationScore"]
-            }
-          },
-          required: ["type", "entry", "tp", "sl", "pips", "lotSize", "rr", "confidence", "reasoning", "regime"]
-        }
-      }
+    const headers = await getHeaders();
+    const response = await fetch('/api/signals/analyze', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({
+        pair,
+        candles,
+        marketType,
+        timeframe,
+        patterns,
+        news,
+        personality,
+        accountBalance,
+        riskPercent
+      })
     });
 
-    const cleanText = cleanJsonString(response.text);
-    const result = JSON.parse(cleanText);
-    const hash = btoa(`${pair}-${result.type}-${Date.now()}`).slice(0, 16).toUpperCase();
+    if (!response.ok) {
+      const error = await response.json();
+      throw new Error(error.error || 'Analysis failed');
+    }
 
-    return { 
-      ...result,
-      id: Math.random().toString(36).substr(2, 9),
-      hash: hash,
-      signature: btoa(Date.now().toString()).slice(0, 10),
-      pair: pair,
-      marketType: marketType,
-      timeframe: timeframe,
-      timestamp: Date.now()
-    };
+    return await response.json();
   } catch (error) {
     console.error("Neural Node Desync:", error);
     return { type: 'WAIT', reasoning: "Calibrating institutional liquidity data..." };
@@ -135,31 +65,16 @@ export const getMarketSituationHUD = async (
   candles: Candle[]
 ): Promise<LiveSituation> => {
   try {
-    const prompt = `Institutional SIT-REP for ${pair}. Assess immediate Market Structure and News Bias. Data: ${JSON.stringify(candles.slice(-20))}. Return JSON.`;
-    
-    const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: prompt,
-      config: {
-        responseMimeType: "application/json",
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            sentiment: { type: Type.STRING, enum: ["BULLISH", "BEARISH", "NEUTRAL"] },
-            shortSummary: { type: Type.STRING },
-            volatility: { type: Type.STRING, enum: ["LOW", "MEDIUM", "HIGH"] },
-            keyLevel: { type: Type.NUMBER },
-            newsBias: { type: Type.STRING, enum: ["HIGH_RISK", "BULLISH", "BEARISH", "NEUTRAL"] },
-            nextNewsEvent: { type: Type.STRING },
-            marketRegime: { type: Type.STRING, enum: ['TRENDING', 'RANGING', 'CHOPPY', 'HIGH_VOLATILITY', 'LOW_LIQUIDITY'] }
-          },
-          required: ["sentiment", "shortSummary", "volatility", "newsBias", "marketRegime"]
-        }
-      }
+    const headers = await getHeaders();
+    const response = await fetch('/api/signals/hud', {
+      method: 'POST',
+      headers,
+      body: JSON.stringify({ pair, candles })
     });
 
-    const cleanText = cleanJsonString(response.text);
-    return JSON.parse(cleanText) as LiveSituation;
+    if (!response.ok) throw new Error('HUD update failed');
+
+    return await response.json();
   } catch (error) {
     return { 
       sentiment: 'NEUTRAL', 
@@ -174,8 +89,11 @@ export const getMarketSituationHUD = async (
 export const getMarketSituation = async (query: string): Promise<string> => {
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
-      contents: query
+      model: "gemini-3.1-pro-preview",
+      contents: query,
+      config: {
+        systemInstruction: "You are AlphaTrade AI, an elite institutional-grade trading assistant. Provide concise, high-precision market analysis."
+      }
     });
     return response.text || "No analysis available from the neural node.";
   } catch (error) {
@@ -193,18 +111,27 @@ export const validateTradeIdea = async (
   candles: Candle[]
 ): Promise<ValidationResult> => {
   try {
-    const prompt = `Act as an Institutional Risk Auditor. Validate the following trade setup for ${symbol}: SIDE: ${side} ENTRY: ${entry} SL: ${sl} TP: ${tp} MARKET DATA: ${JSON.stringify(candles.slice(-30))} Return a JSON validation object.`;
+    const prompt = `Act as an Institutional Risk Auditor. Validate the following trade setup for ${symbol}:
+SIDE: ${side}
+ENTRY: ${entry}
+SL: ${sl}
+TP: ${tp}
+
+MARKET DATA (Last 30 Candles):
+${JSON.stringify(candles.slice(-30))}
+
+Return a strictly valid JSON validation object.`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-pro-preview",
       contents: prompt,
       config: {
         responseMimeType: "application/json",
         responseSchema: {
           type: Type.OBJECT,
           properties: {
-            accuracy: { type: Type.NUMBER },
-            feedback: { type: Type.STRING },
+            accuracy: { type: Type.NUMBER, description: "Confidence score 0-100" },
+            feedback: { type: Type.STRING, description: "Detailed auditor feedback" },
             verdict: { type: Type.STRING, enum: ['VALID', 'RISKY', 'INVALID'] }
           },
           required: ["accuracy", "feedback", "verdict"]
@@ -224,10 +151,10 @@ export const getChatResponse = async (userMessage: string): Promise<string> => {
   try {
     const prompt = `System: You are AlphaTrade AI, a highly advanced, institutional-grade trading assistant.
     User: ${userMessage}
-    Response (Keep it concise):`;
+    Response (Keep it concise and professional):`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-flash-preview",
+      model: "gemini-3.1-pro-preview",
       contents: prompt,
     });
     return response.text || "Signal interrupted. Please repeat command.";

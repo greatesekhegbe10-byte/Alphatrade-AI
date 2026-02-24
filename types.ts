@@ -211,6 +211,24 @@ export interface Transaction {
   verificationSource?: string;
 }
 
+export interface TechnicalIndicators {
+  sma20: number;
+  sma50: number;
+  sma200: number;
+  rsi: number;
+  macd: {
+    macd: number;
+    signal: number;
+    histogram: number;
+  };
+  bollingerBands: {
+    upper: number;
+    middle: number;
+    lower: number;
+  };
+  atr: number;
+}
+
 export interface BacktestResult {
   totalTrades: number;
   wins: number;
